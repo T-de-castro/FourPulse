@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import Base, engine
-from app.routers import auth, chamados, cidadaos, tipos_ocorrencia, usuarios
+from app.routers import auth, chamados, clientes, tipos_ocorrencia, usuarios
 
 # Cria as tabelas automaticamente se não existirem
 Base.metadata.create_all(bind=engine)
@@ -25,7 +25,7 @@ app.add_middleware(
 # Registra os routers
 app.include_router(auth.router)
 app.include_router(usuarios.router)
-app.include_router(cidadaos.router)
+app.include_router(clientes.router)
 app.include_router(tipos_ocorrencia.router)
 app.include_router(chamados.router)
 

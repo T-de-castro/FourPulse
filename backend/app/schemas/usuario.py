@@ -1,13 +1,13 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 from typing import Optional
 
 
 class UsuarioBase(BaseModel):
     nome: str
-    setor: str
+    cpf: str
     permissao: str = "operador"
-    email: EmailStr
     status: bool = True
+    email: Optional[str] = None  # usado para login
 
 
 class UsuarioCreate(UsuarioBase):
@@ -16,10 +16,10 @@ class UsuarioCreate(UsuarioBase):
 
 class UsuarioUpdate(BaseModel):
     nome: Optional[str] = None
-    setor: Optional[str] = None
+    cpf: Optional[str] = None
     permissao: Optional[str] = None
-    email: Optional[EmailStr] = None
     status: Optional[bool] = None
+    email: Optional[str] = None
 
 
 class UsuarioOut(UsuarioBase):

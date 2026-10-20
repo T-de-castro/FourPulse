@@ -9,11 +9,10 @@ class Usuario(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     nome = Column(String, nullable=False)
-    setor = Column(String, nullable=False)
+    cpf = Column(String(14), unique=True, nullable=False, index=True)
     permissao = Column(String, nullable=False, default="operador")  # "admin" ou "operador"
-    email = Column(String, unique=True, nullable=False, index=True)
-    senha_hash = Column(String, nullable=False)
     status = Column(Boolean, default=True)
 
-    # Chamados atribuídos a este usuário
-    chamados = relationship("Chamado", back_populates="responsavel")
+    # Necessário para autenticação — não está no diagrama mas é obrigatório para login
+    email = Column(String, unique=True, nullable=True, index=True)
+    senha_hash = Column(String, nullable=False)

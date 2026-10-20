@@ -6,7 +6,6 @@ from sqlalchemy.orm import Session
 from app.auth.dependencies import get_usuario_atual
 from app.database import get_db
 from app.models.chamado import Chamado, StatusChamado
-from app.models.tipo_ocorrencia import TipoOcorrencia
 from app.models.usuario import Usuario
 from app.schemas.chamado import ChamadoCreate, ChamadoOut, ChamadoUpdate, DashboardOut
 
@@ -29,17 +28,11 @@ def dashboard(
         nome_tipo = c.tipo.descricao if c.tipo else "Sem tipo"
         por_tipo[nome_tipo] = por_tipo.get(nome_tipo, 0) + 1
 
-    por_prioridade: dict[str, int] = {}
-    for c in todos:
-        prio = c.prioridade.value if c.prioridade else "sem_prioridade"
-        por_prioridade[prio] = por_prioridade.get(prio, 0) + 1
-
     return DashboardOut(
         abertos=abertos,
         em_atendimento=em_atendimento,
         finalizados=finalizados,
         por_tipo=por_tipo,
-        por_prioridade=por_prioridade,
     )
 
 
@@ -47,7 +40,6 @@ def dashboard(
 def listar_chamados(
     status_filtro: Optional[StatusChamado] = None,
     tipo_id: Optional[int] = None,
-    responsavel_id: Optional[int] = None,
     db: Session = Depends(get_db),
     _: Usuario = Depends(get_usuario_atual),
 ):
@@ -56,8 +48,6 @@ def listar_chamados(
         query = query.filter(Chamado.status == status_filtro)
     if tipo_id:
         query = query.filter(Chamado.tipo_id == tipo_id)
-    if responsavel_id:
-        query = query.filter(Chamado.responsavel_id == responsavel_id)
     return query.all()
 
 
