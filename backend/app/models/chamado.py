@@ -22,7 +22,7 @@ class CanalEntrada(str, enum.Enum):
 
 
 class StatusChamado(str, enum.Enum):
-    ABERTO = "Chamados abertos"
+    ABERTO = "Em aberto"
     EM_ANDAMENTO = "Em andamento"
     AGUARDANDO_RETORNO = "Aguardando retorno"
     FINALIZADO = "Finalizado"

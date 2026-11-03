@@ -8,9 +8,25 @@ from app.schemas.cliente import ClienteOut
 from app.schemas.tipo_ocorrencia import TipoOcorrenciaOut
 
 
+def normalizar_status(status_str: Optional[str]) -> Optional[str]:
+    if not status_str:
+        return status_str
+    mapa = {
+        "chamados abertos": StatusChamado.ABERTO.value,
+        "aberto": StatusChamado.ABERTO.value,
+        "em aberto": StatusChamado.ABERTO.value,
+        "em andamento": StatusChamado.EM_ANDAMENTO.value,
+        "em_atendimento": StatusChamado.EM_ANDAMENTO.value,
+        "aguardando retorno": StatusChamado.AGUARDANDO_RETORNO.value,
+        "finalizado": StatusChamado.FINALIZADO.value,
+    }
+    return mapa.get(status_str.strip().lower(), status_str)
+
+
 class ChamadoBase(BaseModel):
     descricao: str
     canal_entrada: str = CanalEntrada.TELEFONE.value
+    status: str = StatusChamado.ABERTO.value
     notificar_email: bool = False
     notificar_whatsapp: bool = False
     data_limite: Optional[datetime] = None
@@ -31,6 +47,8 @@ class ChamadoCreate(ChamadoBase):
                 values["id_cliente"] = values.get("cliente_id")
             if "id_tipo" not in values or values.get("id_tipo") is None:
                 values["id_tipo"] = values.get("tipo_id")
+            if "status" in values:
+                values["status"] = normalizar_status(values.get("status"))
         return values
 
 
@@ -51,6 +69,8 @@ class ChamadoUpdate(BaseModel):
         if isinstance(values, dict):
             if values.get("id_tipo") is None and values.get("tipo_id") is not None:
                 values["id_tipo"] = values.get("tipo_id")
+            if "status" in values and values.get("status") is not None:
+                values["status"] = normalizar_status(values.get("status"))
         return values
 
 

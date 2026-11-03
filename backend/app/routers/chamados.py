@@ -10,7 +10,13 @@ from app.models.chamado import Chamado, StatusChamado
 from app.models.cliente import Cliente
 from app.models.tipo_ocorrencia import TipoOcorrencia
 from app.models.usuario import Usuario
-from app.schemas.chamado import ChamadoCreate, ChamadoOut, ChamadoUpdate, DashboardOut
+from app.schemas.chamado import (
+    ChamadoCreate,
+    ChamadoOut,
+    ChamadoUpdate,
+    DashboardOut,
+    normalizar_status,
+)
 
 router = APIRouter(prefix="/chamados", tags=["Chamados"])
 
@@ -22,10 +28,10 @@ def dashboard(
 ):
     todos = db.query(Chamado).all()
 
-    abertos = sum(1 for c in todos if c.status in ["Chamados abertos", "aberto"])
-    em_andamento = sum(1 for c in todos if c.status in ["Em andamento", "em_atendimento"])
-    aguardando_retorno = sum(1 for c in todos if c.status == "Aguardando retorno")
-    finalizados = sum(1 for c in todos if c.status in ["Finalizado", "finalizado"])
+    abertos = sum(1 for c in todos if c.status in [StatusChamado.ABERTO.value, "Chamados abertos", "aberto"])
+    em_andamento = sum(1 for c in todos if c.status in [StatusChamado.EM_ANDAMENTO.value, "em_atendimento"])
+    aguardando_retorno = sum(1 for c in todos if c.status == StatusChamado.AGUARDANDO_RETORNO.value)
+    finalizados = sum(1 for c in todos if c.status in [StatusChamado.FINALIZADO.value, "finalizado"])
 
     por_tipo: dict[str, int] = {}
     for c in todos:
@@ -52,7 +58,7 @@ def listar_chamados(
 ):
     query = db.query(Chamado)
     if status_filtro:
-        query = query.filter(Chamado.status == status_filtro)
+        query = query.filter(Chamado.status == normalizar_status(status_filtro))
     if id_tipo:
         query = query.filter(Chamado.id_tipo == id_tipo)
     if id_cliente:
@@ -115,7 +121,7 @@ def atualizar_chamado(
     for campo, valor in payload.items():
         setattr(chamado, campo, valor)
 
-    if dados.status in ["Finalizado", "finalizado"] and not chamado.data_fechamento:
+    if chamado.status in [StatusChamado.FINALIZADO.value, "finalizado"] and not chamado.data_fechamento:
         chamado.data_fechamento = datetime.utcnow()
 
     db.commit()
