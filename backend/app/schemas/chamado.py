@@ -23,9 +23,24 @@ def normalizar_status(status_str: Optional[str]) -> Optional[str]:
     return mapa.get(status_str.strip().lower(), status_str)
 
 
+def normalizar_canal(canal_str: Optional[str]) -> Optional[str]:
+    if not canal_str:
+        return canal_str
+    mapa = {
+        "whatsapp": CanalEntrada.WHATSAPP.value,
+        "e-mail": CanalEntrada.EMAIL.value,
+        "email": CanalEntrada.EMAIL.value,
+        "portal": CanalEntrada.PORTAL.value,
+        "presencialmente": CanalEntrada.PRESENCIALMENTE.value,
+        "presencial": CanalEntrada.PRESENCIALMENTE.value,
+        "telefone": CanalEntrada.WHATSAPP.value,  # fallback amigável para check constraint
+    }
+    return mapa.get(canal_str.strip().lower(), canal_str)
+
+
 class ChamadoBase(BaseModel):
     descricao: str
-    canal_entrada: str = CanalEntrada.TELEFONE.value
+    canal_entrada: str = CanalEntrada.WHATSAPP.value
     status: str = StatusChamado.ABERTO.value
     notificar_email: bool = False
     notificar_whatsapp: bool = False
@@ -33,22 +48,26 @@ class ChamadoBase(BaseModel):
 
 
 class ChamadoCreate(ChamadoBase):
-    id_cliente: Optional[int] = None
-    id_tipo: Optional[int] = None
-    # Suporte para compatibilidade se enviarem cliente_id / tipo_id
     cliente_id: Optional[int] = None
     tipo_id: Optional[int] = None
+    id_cliente: Optional[int] = None
+    id_tipo: Optional[int] = None
 
     @model_validator(mode="before")
     @classmethod
-    def reconcile_ids(cls, values: dict):
+    def reconcile_fields(cls, values: dict):
         if isinstance(values, dict):
-            if "id_cliente" not in values or values.get("id_cliente") is None:
-                values["id_cliente"] = values.get("cliente_id")
-            if "id_tipo" not in values or values.get("id_tipo") is None:
-                values["id_tipo"] = values.get("tipo_id")
+            # Garante que cliente_id e tipo_id estejam preenchidos
+            c_id = values.get("cliente_id") or values.get("id_cliente")
+            t_id = values.get("tipo_id") or values.get("id_tipo")
+            values["cliente_id"] = c_id
+            values["id_cliente"] = c_id
+            values["tipo_id"] = t_id
+            values["id_tipo"] = t_id
             if "status" in values:
                 values["status"] = normalizar_status(values.get("status"))
+            if "canal_entrada" in values:
+                values["canal_entrada"] = normalizar_canal(values.get("canal_entrada"))
         return values
 
 
@@ -56,8 +75,8 @@ class ChamadoUpdate(BaseModel):
     descricao: Optional[str] = None
     canal_entrada: Optional[str] = None
     status: Optional[str] = None
-    id_tipo: Optional[int] = None
     tipo_id: Optional[int] = None
+    id_tipo: Optional[int] = None
     notificar_email: Optional[bool] = None
     notificar_whatsapp: Optional[bool] = None
     data_limite: Optional[datetime] = None
@@ -65,17 +84,23 @@ class ChamadoUpdate(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def reconcile_update_ids(cls, values: dict):
+    def reconcile_update_fields(cls, values: dict):
         if isinstance(values, dict):
-            if values.get("id_tipo") is None and values.get("tipo_id") is not None:
-                values["id_tipo"] = values.get("tipo_id")
+            t_id = values.get("tipo_id") or values.get("id_tipo")
+            if t_id is not None:
+                values["tipo_id"] = t_id
+                values["id_tipo"] = t_id
             if "status" in values and values.get("status") is not None:
                 values["status"] = normalizar_status(values.get("status"))
+            if "canal_entrada" in values and values.get("canal_entrada") is not None:
+                values["canal_entrada"] = normalizar_canal(values.get("canal_entrada"))
         return values
 
 
 class ChamadoOut(ChamadoBase):
     id_chamado: int
+    cliente_id: int
+    tipo_id: int
     id_cliente: int
     id_tipo: int
     status: str

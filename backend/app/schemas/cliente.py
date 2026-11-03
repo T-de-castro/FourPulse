@@ -10,7 +10,7 @@ class ClienteBase(BaseModel):
     estado: str
     email: Optional[str] = None
     whatsapp: Optional[str] = None
-    status: str = "Ativo"
+    status: bool = True
 
 
 class ClienteCreate(ClienteBase):
@@ -23,7 +23,7 @@ class ClienteUpdate(BaseModel):
     estado: Optional[str] = None
     email: Optional[str] = None
     whatsapp: Optional[str] = None
-    status: Optional[str] = None
+    status: Optional[bool] = None
 
 
 class ClienteOut(ClienteBase):

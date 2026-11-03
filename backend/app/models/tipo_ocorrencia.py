@@ -5,9 +5,9 @@ from app.database import Base
 
 
 class TipoOcorrencia(Base):
-    __tablename__ = "tipos_ocorrencia"
+    __tablename__ = "tipos"
 
     id_tipo = Column(Integer, primary_key=True, index=True)
-    descricao = Column(String, unique=True, nullable=False)
+    descricao = Column(String(255), nullable=False)
 
     chamados = relationship("Chamado", back_populates="tipo")

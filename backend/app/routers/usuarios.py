@@ -76,5 +76,5 @@ def desativar_usuario(
     usuario = db.query(Usuario).filter(Usuario.id_usuario == id_usuario).first()
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuário não encontrado")
-    usuario.status = "Inativo"  # soft delete
+    usuario.status = False  # soft delete
     db.commit()

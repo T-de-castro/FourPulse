@@ -73,5 +73,5 @@ def desativar_cliente(
     cliente = db.query(Cliente).filter(Cliente.id_cliente == id_cliente).first()
     if not cliente:
         raise HTTPException(status_code=404, detail="Cliente não encontrado")
-    cliente.status = "Inativo"
+    cliente.status = False
     db.commit()

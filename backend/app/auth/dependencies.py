@@ -22,7 +22,7 @@ def get_usuario_atual(
         )
     usuario_id = payload.get("sub")
     usuario = db.query(Usuario).filter(Usuario.id_usuario == usuario_id).first()
-    if not usuario or usuario.status == "Inativo":
+    if not usuario or not usuario.status:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Usuário não encontrado ou inativo")
     return usuario
 

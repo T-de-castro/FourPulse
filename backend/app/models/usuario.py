@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String
+from sqlalchemy import Boolean, Column, Integer, String
 
 from app.database import Base
 
@@ -7,11 +7,11 @@ class Usuario(Base):
     __tablename__ = "usuarios"
 
     id_usuario = Column(Integer, primary_key=True, index=True)
-    nome = Column(String, nullable=False)
+    nome = Column(String(255), nullable=False)
     cpf = Column(String(14), unique=True, nullable=False, index=True)
-    permissao = Column(String, nullable=False, default="operador")  # "admin", "operador"
-    status = Column(String(20), default="Ativo")  # "Ativo", "Inativo"
+    permissao = Column(String(50), nullable=False, default="operador")
+    status = Column(Boolean, default=True)
 
-    # Necessário para autenticação — não está no diagrama mas é obrigatório para login
-    email = Column(String, unique=True, nullable=True, index=True)
+    # Necessário para autenticação/login
+    email = Column(String(150), unique=True, nullable=True, index=True)
     senha_hash = Column(String, nullable=False)

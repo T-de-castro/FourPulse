@@ -51,18 +51,22 @@ def dashboard(
 @router.get("/", response_model=List[ChamadoOut])
 def listar_chamados(
     status_filtro: Optional[str] = None,
+    tipo_id: Optional[int] = None,
+    cliente_id: Optional[int] = None,
     id_tipo: Optional[int] = None,
     id_cliente: Optional[int] = None,
     db: Session = Depends(get_db),
     _: Usuario = Depends(get_usuario_atual),
 ):
+    t_id = tipo_id or id_tipo
+    c_id = cliente_id or id_cliente
     query = db.query(Chamado)
     if status_filtro:
         query = query.filter(Chamado.status == normalizar_status(status_filtro))
-    if id_tipo:
-        query = query.filter(Chamado.id_tipo == id_tipo)
-    if id_cliente:
-        query = query.filter(Chamado.id_cliente == id_cliente)
+    if t_id:
+        query = query.filter(Chamado.tipo_id == t_id)
+    if c_id:
+        query = query.filter(Chamado.cliente_id == c_id)
     return query.all()
 
 
@@ -72,21 +76,21 @@ def criar_chamado(
     db: Session = Depends(get_db),
     _: Usuario = Depends(get_usuario_atual),
 ):
-    if not dados.id_cliente or not dados.id_tipo:
+    if not dados.cliente_id or not dados.tipo_id:
         raise HTTPException(
             status_code=400,
-            detail="id_cliente e id_tipo são obrigatórios",
+            detail="cliente_id (ou id_cliente) e tipo_id (ou id_tipo) são obrigatórios",
         )
 
-    cliente = db.query(Cliente).filter(Cliente.id_cliente == dados.id_cliente).first()
+    cliente = db.query(Cliente).filter(Cliente.id_cliente == dados.cliente_id).first()
     if not cliente:
         raise HTTPException(status_code=404, detail="Cliente não encontrado")
 
-    tipo = db.query(TipoOcorrencia).filter(TipoOcorrencia.id_tipo == dados.id_tipo).first()
+    tipo = db.query(TipoOcorrencia).filter(TipoOcorrencia.id_tipo == dados.tipo_id).first()
     if not tipo:
         raise HTTPException(status_code=404, detail="Tipo de ocorrência não encontrado")
 
-    payload = dados.model_dump(exclude={"cliente_id", "tipo_id"})
+    payload = dados.model_dump(exclude={"id_cliente", "id_tipo"})
     chamado = Chamado(**payload)
     db.add(chamado)
     db.commit()
@@ -117,7 +121,7 @@ def atualizar_chamado(
     if not chamado:
         raise HTTPException(status_code=404, detail="Chamado não encontrado")
 
-    payload = dados.model_dump(exclude_none=True, exclude={"tipo_id"})
+    payload = dados.model_dump(exclude_none=True, exclude={"id_tipo"})
     for campo, valor in payload.items():
         setattr(chamado, campo, valor)
 

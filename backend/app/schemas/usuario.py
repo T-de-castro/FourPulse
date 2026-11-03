@@ -7,7 +7,7 @@ class UsuarioBase(BaseModel):
     nome: str
     cpf: str
     permissao: str = "operador"
-    status: str = "Ativo"
+    status: bool = True
     email: Optional[str] = None  # usado para login
 
 
@@ -19,7 +19,7 @@ class UsuarioUpdate(BaseModel):
     nome: Optional[str] = None
     cpf: Optional[str] = None
     permissao: Optional[str] = None
-    status: Optional[str] = None
+    status: Optional[bool] = None
     email: Optional[str] = None
 
 
