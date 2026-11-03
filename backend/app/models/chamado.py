@@ -4,7 +4,6 @@ from sqlalchemy import (
     Boolean,
     Column,
     DateTime,
-    Enum,
     ForeignKey,
     Integer,
     String,
@@ -16,24 +15,26 @@ from app.database import Base
 
 
 class CanalEntrada(str, enum.Enum):
-    telefone = "telefone"
-    presencial = "presencial"
-    web = "web"
+    WHATSAPP = "WhatsApp"
+    EMAIL = "E-mail"
+    TELEFONE = "Telefone"
+    PORTAL = "Portal"
 
 
 class StatusChamado(str, enum.Enum):
-    aberto = "aberto"
-    em_atendimento = "em_atendimento"
-    finalizado = "finalizado"
+    ABERTO = "Chamados abertos"
+    EM_ANDAMENTO = "Em andamento"
+    AGUARDANDO_RETORNO = "Aguardando retorno"
+    FINALIZADO = "Finalizado"
 
 
 class Chamado(Base):
     __tablename__ = "chamados"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id_chamado = Column(Integer, primary_key=True, index=True)
     descricao = Column(String, nullable=False)
-    canal_entrada = Column(Enum(CanalEntrada), nullable=False, default=CanalEntrada.telefone)
-    status = Column(Enum(StatusChamado), nullable=False, default=StatusChamado.aberto)
+    canal_entrada = Column(String(50), nullable=False, default=CanalEntrada.TELEFONE.value)
+    status = Column(String(50), nullable=False, default=StatusChamado.ABERTO.value)
     notificar_email = Column(Boolean, default=False)
     notificar_whatsapp = Column(Boolean, default=False)
 
@@ -42,14 +43,9 @@ class Chamado(Base):
     data_limite = Column(DateTime(timezone=True), nullable=True)
     data_fechamento = Column(DateTime(timezone=True), nullable=True)
 
-    # Campos mencionados no chat do grupo — não estão no diagrama ER ainda
-    # prioridade = Column(Enum(Prioridade), nullable=True)
-    # localizacao = Column(String, nullable=True)
-    # responsavel_id = Column(Integer, ForeignKey("usuarios.id"), nullable=True)
-
-    # Chaves estrangeiras (conforme diagrama)
-    cliente_id = Column(Integer, ForeignKey("clientes.id"), nullable=False)
-    tipo_id = Column(Integer, ForeignKey("tipos_ocorrencia.id"), nullable=False)
+    # Chaves estrangeiras (padronizadas conforme diagrama: id_cliente, id_tipo)
+    id_cliente = Column(Integer, ForeignKey("clientes.id_cliente"), nullable=False)
+    id_tipo = Column(Integer, ForeignKey("tipos_ocorrencia.id_tipo"), nullable=False)
 
     # Relacionamentos
     cliente = relationship("Cliente", back_populates="chamados")

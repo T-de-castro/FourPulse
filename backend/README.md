@@ -58,7 +58,7 @@ app/
 |--------|------|-----------|
 | POST | /auth/login | Login (retorna JWT) |
 | GET/POST | /usuarios/ | Listar / Criar usuários |
-| GET/POST | /cidadaos/ | Listar / Criar cidadãos |
+| GET/POST | /clientes/ | Listar / Criar clientes |
 | GET/POST | /tipos/ | Listar / Criar tipos de ocorrência |
 | GET/POST | /chamados/ | Listar / Abrir chamados |
 | GET | /chamados/dashboard | Dados do dashboard |

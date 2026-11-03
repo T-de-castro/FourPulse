@@ -35,26 +35,26 @@ def criar_cliente(
     return cliente
 
 
-@router.get("/{cliente_id}", response_model=ClienteOut)
+@router.get("/{id_cliente}", response_model=ClienteOut)
 def buscar_cliente(
-    cliente_id: int,
+    id_cliente: int,
     db: Session = Depends(get_db),
     _: Usuario = Depends(get_usuario_atual),
 ):
-    cliente = db.query(Cliente).filter(Cliente.id == cliente_id).first()
+    cliente = db.query(Cliente).filter(Cliente.id_cliente == id_cliente).first()
     if not cliente:
         raise HTTPException(status_code=404, detail="Cliente não encontrado")
     return cliente
 
 
-@router.put("/{cliente_id}", response_model=ClienteOut)
+@router.put("/{id_cliente}", response_model=ClienteOut)
 def atualizar_cliente(
-    cliente_id: int,
+    id_cliente: int,
     dados: ClienteUpdate,
     db: Session = Depends(get_db),
     _: Usuario = Depends(get_usuario_atual),
 ):
-    cliente = db.query(Cliente).filter(Cliente.id == cliente_id).first()
+    cliente = db.query(Cliente).filter(Cliente.id_cliente == id_cliente).first()
     if not cliente:
         raise HTTPException(status_code=404, detail="Cliente não encontrado")
     for campo, valor in dados.model_dump(exclude_none=True).items():
@@ -62,3 +62,16 @@ def atualizar_cliente(
     db.commit()
     db.refresh(cliente)
     return cliente
+
+
+@router.delete("/{id_cliente}", status_code=status.HTTP_204_NO_CONTENT)
+def desativar_cliente(
+    id_cliente: int,
+    db: Session = Depends(get_db),
+    _: Usuario = Depends(get_usuario_atual),
+):
+    cliente = db.query(Cliente).filter(Cliente.id_cliente == id_cliente).first()
+    if not cliente:
+        raise HTTPException(status_code=404, detail="Cliente não encontrado")
+    cliente.status = "Inativo"
+    db.commit()

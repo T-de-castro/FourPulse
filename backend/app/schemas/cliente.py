@@ -1,5 +1,6 @@
-from pydantic import BaseModel
 from typing import Optional
+
+from pydantic import BaseModel
 
 
 class ClienteBase(BaseModel):
@@ -9,7 +10,7 @@ class ClienteBase(BaseModel):
     estado: str
     email: Optional[str] = None
     whatsapp: Optional[str] = None
-    status: bool = True
+    status: str = "Ativo"
 
 
 class ClienteCreate(ClienteBase):
@@ -22,10 +23,10 @@ class ClienteUpdate(BaseModel):
     estado: Optional[str] = None
     email: Optional[str] = None
     whatsapp: Optional[str] = None
-    status: Optional[bool] = None
+    status: Optional[str] = None
 
 
 class ClienteOut(ClienteBase):
-    id: int
+    id_cliente: int
 
     model_config = {"from_attributes": True}

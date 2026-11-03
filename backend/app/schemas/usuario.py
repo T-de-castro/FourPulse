@@ -1,12 +1,13 @@
-from pydantic import BaseModel
 from typing import Optional
+
+from pydantic import BaseModel
 
 
 class UsuarioBase(BaseModel):
     nome: str
     cpf: str
     permissao: str = "operador"
-    status: bool = True
+    status: str = "Ativo"
     email: Optional[str] = None  # usado para login
 
 
@@ -18,11 +19,11 @@ class UsuarioUpdate(BaseModel):
     nome: Optional[str] = None
     cpf: Optional[str] = None
     permissao: Optional[str] = None
-    status: Optional[bool] = None
+    status: Optional[str] = None
     email: Optional[str] = None
 
 
 class UsuarioOut(UsuarioBase):
-    id: int
+    id_usuario: int
 
     model_config = {"from_attributes": True}

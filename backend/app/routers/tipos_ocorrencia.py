@@ -33,14 +33,26 @@ def criar_tipo(
     return tipo
 
 
-@router.put("/{tipo_id}", response_model=TipoOcorrenciaOut)
+@router.get("/{id_tipo}", response_model=TipoOcorrenciaOut)
+def buscar_tipo(
+    id_tipo: int,
+    db: Session = Depends(get_db),
+    _: Usuario = Depends(get_usuario_atual),
+):
+    tipo = db.query(TipoOcorrencia).filter(TipoOcorrencia.id_tipo == id_tipo).first()
+    if not tipo:
+        raise HTTPException(status_code=404, detail="Tipo não encontrado")
+    return tipo
+
+
+@router.put("/{id_tipo}", response_model=TipoOcorrenciaOut)
 def atualizar_tipo(
-    tipo_id: int,
+    id_tipo: int,
     dados: TipoOcorrenciaUpdate,
     db: Session = Depends(get_db),
     _: Usuario = Depends(apenas_admin),
 ):
-    tipo = db.query(TipoOcorrencia).filter(TipoOcorrencia.id == tipo_id).first()
+    tipo = db.query(TipoOcorrencia).filter(TipoOcorrencia.id_tipo == id_tipo).first()
     if not tipo:
         raise HTTPException(status_code=404, detail="Tipo não encontrado")
     for campo, valor in dados.model_dump(exclude_none=True).items():
@@ -50,13 +62,13 @@ def atualizar_tipo(
     return tipo
 
 
-@router.delete("/{tipo_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{id_tipo}", status_code=status.HTTP_204_NO_CONTENT)
 def deletar_tipo(
-    tipo_id: int,
+    id_tipo: int,
     db: Session = Depends(get_db),
     _: Usuario = Depends(apenas_admin),
 ):
-    tipo = db.query(TipoOcorrencia).filter(TipoOcorrencia.id == tipo_id).first()
+    tipo = db.query(TipoOcorrencia).filter(TipoOcorrencia.id_tipo == id_tipo).first()
     if not tipo:
         raise HTTPException(status_code=404, detail="Tipo não encontrado")
     db.delete(tipo)

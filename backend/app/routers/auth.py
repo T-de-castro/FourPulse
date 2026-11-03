@@ -18,8 +18,8 @@ def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get
             detail="E-mail ou senha incorretos",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    if not usuario.status:
+    if usuario.status == "Inativo":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Usuário inativo")
 
-    token = criar_token({"sub": str(usuario.id), "permissao": usuario.permissao})
+    token = criar_token({"sub": str(usuario.id_usuario), "permissao": usuario.permissao})
     return {"access_token": token, "token_type": "bearer"}
