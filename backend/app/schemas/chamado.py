@@ -5,7 +5,7 @@ from pydantic import BaseModel, model_validator
 
 from app.models.chamado import CanalEntrada, StatusChamado
 from app.schemas.cliente import ClienteOut
-from app.schemas.tipo_ocorrencia import TipoOcorrenciaOut
+from app.schemas.tipo import TipoOut
 
 
 def normalizar_status(status_str: Optional[str]) -> Optional[str]:
@@ -107,7 +107,7 @@ class ChamadoOut(ChamadoBase):
     data_abertura: datetime
     data_fechamento: Optional[datetime] = None
     cliente: ClienteOut
-    tipo: TipoOcorrenciaOut
+    tipo: TipoOut
 
     model_config = {"from_attributes": True}
 

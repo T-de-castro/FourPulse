@@ -48,7 +48,7 @@ class Chamado(Base):
 
     # Relacionamentos
     cliente = relationship("Cliente", back_populates="chamados")
-    tipo = relationship("TipoOcorrencia", back_populates="chamados")
+    tipo = relationship("Tipo", back_populates="chamados")
 
     # Propriedades de conveniência para suportar id_cliente / id_tipo
     @property

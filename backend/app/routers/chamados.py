@@ -8,7 +8,7 @@ from app.auth.dependencies import get_usuario_atual
 from app.database import get_db
 from app.models.chamado import Chamado, StatusChamado
 from app.models.cliente import Cliente
-from app.models.tipo_ocorrencia import TipoOcorrencia
+from app.models.tipo import Tipo
 from app.models.usuario import Usuario
 from app.schemas.chamado import (
     ChamadoCreate,
@@ -86,9 +86,9 @@ def criar_chamado(
     if not cliente:
         raise HTTPException(status_code=404, detail="Cliente não encontrado")
 
-    tipo = db.query(TipoOcorrencia).filter(TipoOcorrencia.id_tipo == dados.tipo_id).first()
+    tipo = db.query(Tipo).filter(Tipo.id_tipo == dados.tipo_id).first()
     if not tipo:
-        raise HTTPException(status_code=404, detail="Tipo de ocorrência não encontrado")
+        raise HTTPException(status_code=404, detail="Tipo não encontrado")
 
     payload = dados.model_dump(exclude={"id_cliente", "id_tipo"})
     chamado = Chamado(**payload)
