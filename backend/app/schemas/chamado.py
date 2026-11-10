@@ -1,10 +1,12 @@
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 
 from pydantic import BaseModel, model_validator
 
 from app.models.chamado import CanalEntrada, StatusChamado
+from app.schemas.chamado_material import ChamadoMaterialOut
 from app.schemas.cliente import ClienteOut
+from app.schemas.foto import ChamadoFotoOut
 from app.schemas.tipo import TipoOut
 
 
@@ -108,6 +110,8 @@ class ChamadoOut(ChamadoBase):
     data_fechamento: Optional[datetime] = None
     cliente: ClienteOut
     tipo: TipoOut
+    fotos: List[ChamadoFotoOut] = []
+    materiais: List[ChamadoMaterialOut] = []
 
     model_config = {"from_attributes": True}
 
