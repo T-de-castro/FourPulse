@@ -49,6 +49,16 @@ class Chamado(Base):
     # Relacionamentos
     cliente = relationship("Cliente", back_populates="chamados")
     tipo = relationship("Tipo", back_populates="chamados")
+    fotos = relationship(
+        "ChamadoFoto",
+        back_populates="chamado",
+        cascade="all, delete-orphan",
+    )
+    materiais = relationship(
+        "ChamadoMaterial",
+        back_populates="chamado",
+        cascade="all, delete-orphan",
+    )
 
     # Propriedades de conveniência para suportar id_cliente / id_tipo
     @property
