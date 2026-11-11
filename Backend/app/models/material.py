@@ -10,6 +10,7 @@ class Material(Base):
     id_material = Column(Integer, primary_key=True, index=True)
     descricao = Column(String(255), nullable=False)
     unidade_medida = Column(String(50), nullable=False)
+    valor = Column(Numeric(10, 2), default=0.00, nullable=False)
     status = Column(Boolean, default=True, nullable=False)
 
     # Relacionamento com vínculos de chamados

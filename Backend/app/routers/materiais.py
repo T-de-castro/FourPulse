@@ -50,6 +50,7 @@ def criar_material(
     novo_material = Material(
         descricao=dados.descricao.strip(),
         unidade_medida=dados.unidade_medida.strip().upper(),
+        valor=dados.valor,
         status=dados.status,
     )
     db.add(novo_material)
