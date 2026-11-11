@@ -1,4 +1,4 @@
-# PulseDesk — frontend base
+# Defesa Civil — central de atendimento
 
 Protótipo de frontend para uma central de atendimento, construído com Streamlit. A estrutura acompanha as entidades do diagrama: usuários, clientes, tipos de chamado e chamados relacionados a clientes e tipos.
 
@@ -16,18 +16,27 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-## O que está incluído
+## Acesso demonstrativo
 
-- Visão geral com indicadores, estado vazio e filtro de período por data de abertura, limite ou fechamento.
-- Listagem de chamados com busca e filtro pelos status Chamados abertos, Em andamento, Aguardando retorno e Finalizado.
-- Formulário para abertura de chamados, incluindo canal, prazo e preferências de notificação.
-- Cadastros de clientes e tipos, e visualização dos usuários.
-- Cadastros iniciam vazios, sem registros fictícios.
-- Navegação lateral com ícones, realce discreto do módulo ativo e identificação da sessão no rodapé.
-- Menu lateral organizado com a logo da Defesa Civil no topo, PulseDesk logo abaixo, navegação alinhada à esquerda e usuário no rodapé.
-- Conteúdo principal centralizado para manter a composição da visão geral equilibrada em telas desktop.
-- Período da visão geral sugerido do primeiro dia do mês atual até hoje.
-- Paleta de verdes suaves e neutros, com tons semânticos reservados para status e boa legibilidade; configurações de tema em `.streamlit/config.toml`.
+- E-mail: `representante@defesacivilconcordia.sc.gov.br`
+- Senha: `Concórdia`
+
+O acesso da equipe é demonstrativo e não substitui autenticação real. Os registros ficam em memória durante a sessão e não persistem após reiniciar o aplicativo.
+
+Os campos da tela de login são preenchidos inicialmente com as credenciais de demonstração acima. Os rótulos usam português claro, com espaços entre as palavras e capitalização adequada. O cadastro de cliente permanece sem credenciais pré-preenchidas.
+Novos clientes podem usar “Cadastre-se como cliente” e informar nome completo, CPF, e-mail e senha (mínimo de 8 caracteres). A senha é armazenada como hash com salt; após o cadastro, o cliente pode entrar em uma área restrita para ver apenas seus próprios dados e chamados ou abrir uma nova solicitação. A equipe mantém o acesso ao painel administrativo separado. Contas e chamados permanecem em memória durante a sessão e não persistem após reiniciar o aplicativo.
+
+O protótipo inicia com clientes, categorias, materiais, usuários e chamados de exemplo para demonstrar os gráficos e o Kanban. Os dados são fictícios e podem ser alterados durante a sessão.
+
+## Funcionalidades
+
+- Visão geral com gráficos de barras horizontais para distribuição por fase e classificação, exibindo quantidades, percentuais e totais analisados.
+- Quadro Kanban de chamados por fase, ordenado por abertura, com busca e filtros por fase/classificação.
+- Cartões de ocorrência com ícones por classificação, badges acessíveis, metadados e diálogos para detalhes, atualização e finalização.
+- Abertura de chamados com anexos de até 5 fotos; não há campo de prazo.
+- Cadastro de clientes com CEP, bairro, rua e ponto de referência.
+- Cadastro e login de clientes com acesso restrito aos módulos “Chamados” e “Novo chamado”.
+- Cadastro de materiais com valor unitário e registro do material/quantidade usados ao finalizar chamados.
+- Menu de usuário na barra lateral com opção para sair.
+- Paleta administrativa com azul institucional, fundo cinza-claro e cores de fase consistentes, configurada em `.streamlit/config.toml`.
 - Estilos em `assets/style.css` e script de interação em `assets/interactions.js`.
-
-Esta é somente a camada de apresentação: os registros são mantidos em memória durante a sessão e não persistem após reiniciar o aplicativo. O perfil “Usuário conectado” é apenas um marcador visual, não uma autenticação. Persistência, autenticação, notificações e integração com uma API/banco de dados devem ser conectados em uma etapa posterior.
