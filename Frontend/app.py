@@ -1,24 +1,19 @@
-from collections import Counter
-from datetime import date, datetime, timedelta
-import hashlib
-import hmac
+from datetime import datetime
 from html import escape
+import os
 from pathlib import Path
 import re
-import secrets
+import time
 
 import altair as alt
 import streamlit as st
+
+from api import API_BASE_URL, APIError, api_get_many, api_request as _api_request
 
 
 BASE_DIR = Path(__file__).parent
 STATUSES = ["Chamados abertos", "Em andamento", "Aguardando retorno", "Finalizado"]
 CHANNELS = ["WhatsApp", "E-mail", "Telefone", "Portal"]
-DEMO_EMAIL = "representante@defesacivilconcordia.sc.gov.br"
-DEMO_PASSWORD = "Concórdia"
-DEMO_USER = "Representante da Defesa Civil"
-PASSWORD_HASH_ITERATIONS = 310_000
-PASSWORD_SALT_BYTES = 16
 STATUS_PRESENTATION = {
     "Chamados abertos": {
         "label": "Aberto",
@@ -72,233 +67,200 @@ CHANNEL_ICONS = {
     "telefone": "call",
     "portal": "language",
 }
-
-
-def initial_data():
-    now = datetime.now()
-    return {
-        "clients": [
-            {
-                "id": 1,
-                "nome": "Ana Martins",
-                "cpf": "123.456.789-00",
-                "email": "ana.martins@example.com",
-                "whatsapp": "(49) 99912-3456",
-                "idade": 38,
-                "estado": "SC",
-                "cep": "89700-100",
-                "bairro": "Centro",
-                "rua": "Rua das Araucárias, 120",
-                "ponto_referencia": "Próximo à praça central",
-                "status": "Ativo",
-            },
-            {
-                "id": 2,
-                "nome": "João da Silva",
-                "cpf": "234.567.890-11",
-                "email": "joao.silva@example.com",
-                "whatsapp": "(49) 99876-5432",
-                "idade": 52,
-                "estado": "SC",
-                "cep": "89700-210",
-                "bairro": "Imperial",
-                "rua": "Rua dos Pioneiros, 45",
-                "ponto_referencia": "Ao lado do posto de saúde",
-                "status": "Ativo",
-            },
-            {
-                "id": 3,
-                "nome": "Mariana Costa",
-                "cpf": "345.678.901-22",
-                "email": "mariana.costa@example.com",
-                "whatsapp": "(49) 99765-4321",
-                "idade": 29,
-                "estado": "SC",
-                "cep": "89700-330",
-                "bairro": "Santa Cruz",
-                "rua": "Avenida do Comércio, 870",
-                "ponto_referencia": "Casa com portão azul",
-                "status": "Ativo",
-            },
-        ],
-        "types": [
-            {"id": 1, "descricao": "Alagamento"},
-            {"id": 2, "descricao": "Queda de árvore"},
-            {"id": 3, "descricao": "Deslizamento"},
-            {"id": 4, "descricao": "Risco estrutural"},
-        ],
-        "users": [
-            {
-                "id": 1,
-                "nome": DEMO_USER,
-                "email": DEMO_EMAIL,
-                "permissao": "Administrador",
-                "status": "Ativo",
-            },
-            {
-                "id": 2,
-                "nome": "Agente João Ribeiro",
-                "email": "joao.ribeiro@example.com",
-                "permissao": "Atendente",
-                "status": "Ativo",
-            },
-            {
-                "id": 3,
-                "nome": "Agente Paula Mendes",
-                "email": "paula.mendes@example.com",
-                "permissao": "Atendente",
-                "status": "Ativo",
-            },
-        ],
-        "customer_accounts": [],
-        "materials": [
-            {"id": 1, "descricao": "Lona plástica reforçada", "valor": 85.0},
-            {"id": 2, "descricao": "Kit de limpeza", "valor": 42.5},
-            {"id": 3, "descricao": "Saco de areia", "valor": 8.0},
-            {"id": 4, "descricao": "Fita de sinalização", "valor": 19.9},
-        ],
-        "tickets": [
-            {
-                "id": 1,
-                "cliente_id": 1,
-                "tipo_id": 1,
-                "data_abertura": (now - timedelta(hours=2)).strftime("%d/%m/%Y %H:%M"),
-                "data_fechamento": "",
-                "canal_entrada": "Telefone",
-                "status": "Chamados abertos",
-                "descricao": "Água acumulando na entrada da residência após a chuva.",
-                "notificar_whatsapp": True,
-                "notificar_email": False,
-                "fotos": [],
-                "materiais_utilizados": [],
-            },
-            {
-                "id": 2,
-                "cliente_id": 2,
-                "tipo_id": 2,
-                "data_abertura": (now - timedelta(hours=5)).strftime("%d/%m/%Y %H:%M"),
-                "data_fechamento": "",
-                "canal_entrada": "WhatsApp",
-                "status": "Em andamento",
-                "descricao": "Galho de grande porte caiu sobre a via e bloqueia parcialmente a passagem.",
-                "notificar_whatsapp": True,
-                "notificar_email": False,
-                "fotos": [],
-                "materiais_utilizados": [],
-            },
-            {
-                "id": 3,
-                "cliente_id": 3,
-                "tipo_id": 3,
-                "data_abertura": (now - timedelta(days=1)).strftime("%d/%m/%Y %H:%M"),
-                "data_fechamento": "",
-                "canal_entrada": "Portal",
-                "status": "Aguardando retorno",
-                "descricao": "Pequena movimentação de terra observada no talude nos fundos do terreno.",
-                "notificar_whatsapp": False,
-                "notificar_email": True,
-                "fotos": [],
-                "materiais_utilizados": [],
-            },
-            {
-                "id": 4,
-                "cliente_id": 1,
-                "tipo_id": 4,
-                "data_abertura": (now - timedelta(days=2)).strftime("%d/%m/%Y %H:%M"),
-                "data_fechamento": "",
-                "canal_entrada": "Telefone",
-                "status": "Chamados abertos",
-                "descricao": "Trinca recente em parede externa após período de chuva intensa.",
-                "notificar_whatsapp": True,
-                "notificar_email": True,
-                "fotos": [],
-                "materiais_utilizados": [],
-            },
-            {
-                "id": 5,
-                "cliente_id": 2,
-                "tipo_id": 1,
-                "data_abertura": (now - timedelta(days=3)).strftime("%d/%m/%Y %H:%M"),
-                "data_fechamento": (now - timedelta(days=2)).strftime("%d/%m/%Y"),
-                "canal_entrada": "E-mail",
-                "status": "Finalizado",
-                "descricao": "Apoio com lona e materiais de limpeza após entrada de água na garagem.",
-                "notificar_whatsapp": False,
-                "notificar_email": True,
-                "fotos": [],
-                "materiais_utilizados": [
-                    {
-                        "material_id": 1,
-                        "descricao": "Lona plástica reforçada",
-                        "quantidade": 1,
-                        "valor_unitario": 85.0,
-                    },
-                    {
-                        "material_id": 2,
-                        "descricao": "Kit de limpeza",
-                        "quantidade": 2,
-                        "valor_unitario": 42.5,
-                    },
-                ],
-            },
-        ],
-        "next_ticket_id": 6,
-    }
+DATA_CACHE_SECONDS = 30
 
 
 def setup_state():
-    if st.session_state.get("data_schema_version") != 5:
-        st.session_state.data = initial_data()
-        st.session_state.data_schema_version = 5
     st.session_state.setdefault("authenticated", False)
     st.session_state.setdefault("navigation", "Visão geral")
     st.session_state.setdefault("active_ticket_dialog", None)
+    st.session_state.setdefault("data", {
+        "clients": [],
+        "types": [],
+        "users": [],
+        "materials": [],
+        "tickets": [],
+    })
 
 
-def hash_customer_password(password, salt=None):
-    salt = salt or secrets.token_bytes(PASSWORD_SALT_BYTES)
-    password_hash = hashlib.pbkdf2_hmac(
-        "sha256",
-        password.encode("utf-8"),
-        salt,
-        PASSWORD_HASH_ITERATIONS,
+def format_api_datetime(value, date_only=False):
+    if not value:
+        return ""
+    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    return parsed.strftime("%d/%m/%Y" if date_only else "%d/%m/%Y %H:%M")
+
+
+def adapt_client(client):
+    return {
+        **client,
+        "id": client["id_cliente"],
+        "status": "Ativo" if client["status"] else "Inativo",
+    }
+
+
+def adapt_ticket(ticket):
+    status = ticket["status"]
+    if status == "Em aberto":
+        status = "Chamados abertos"
+    photos = [
+        {
+            "nome": photo["caminho_foto"].rsplit("/", 1)[-1],
+            "conteudo": f"{API_BASE_URL}{photo.get('url_foto') or '/' + photo['caminho_foto'].lstrip('/')}",
+        }
+        for photo in ticket.get("fotos", [])
+    ]
+    materials = [
+        {
+            "material_id": item["material_id"],
+            "descricao": item["material"]["descricao"] if item.get("material") else "Material",
+            "quantidade": float(item["quantidade"]),
+            "valor_unitario": float(item["material"]["valor"]) if item.get("material") else 0,
+        }
+        for item in ticket.get("materiais", [])
+    ]
+    return {
+        **ticket,
+        "id": ticket["id_chamado"],
+        "cliente_id": ticket["cliente_id"],
+        "tipo_id": ticket["tipo_id"],
+        "cliente_nome": ticket["cliente"]["nome"] if ticket.get("cliente") else None,
+        "tipo_nome": ticket["tipo"]["descricao"] if ticket.get("tipo") else None,
+        "status": status,
+        "data_abertura": format_api_datetime(ticket["data_abertura"]),
+        "data_fechamento": format_api_datetime(ticket.get("data_fechamento"), date_only=True),
+        "fotos": photos,
+        "materiais_utilizados": materials,
+    }
+
+
+def load_data():
+    loaded_at = st.session_state.get("data_loaded_at", 0)
+    if (
+        st.session_state.get("data_cache_token") == st.session_state.access_token
+        and st.session_state.get("data_cache_page")
+        == (
+            st.session_state.get("customer_navigation", "Chamados")
+            if st.session_state.user_role == "client"
+            else st.session_state.navigation
+        )
+        and time.monotonic() - loaded_at < DATA_CACHE_SECONDS
+    ):
+        return st.session_state.data
+
+    token = st.session_state.access_token
+    empty_data = {
+        "clients": [],
+        "types": [],
+        "users": [],
+        "materials": [],
+        "tickets": [],
+        "dashboard": None,
+    }
+    if st.session_state.user_role == "client":
+        responses = api_get_many(
+            [
+                "/clientes/conta/me",
+                "/clientes/conta/tipos",
+                "/clientes/conta/chamados",
+            ],
+            token,
+        )
+        client = adapt_client(responses["/clientes/conta/me"])
+        st.session_state.client_id = client["id"]
+        data = {
+            "clients": [client],
+            "types": [
+                {**item, "id": item["id_tipo"]}
+                for item in responses["/clientes/conta/tipos"]
+            ],
+            "users": [],
+            "materials": [],
+            "dashboard": None,
+            "tickets": [
+                adapt_ticket(item)
+                for item in responses["/clientes/conta/chamados"]
+            ],
+        }
+    else:
+        data = empty_data
+        page = st.session_state.navigation
+        page_requests = {
+            "Visão geral": ["/chamados/dashboard", "/chamados/?limit=3"],
+            "Chamados": ["/tipos/", "/chamados/", "/materiais/"],
+            "Novo chamado": ["/clientes/", "/tipos/"],
+            "Clientes": ["/clientes/"],
+            "Materiais": ["/materiais/?apenas_ativos=false"],
+            "Tipos": ["/tipos/", "/chamados/dashboard"],
+            "Usuários": ["/usuarios/"],
+        }
+        responses = api_get_many(page_requests.get(page, []), token)
+        if "/clientes/" in responses:
+            data["clients"] = [adapt_client(item) for item in responses["/clientes/"]]
+        if "/tipos/" in responses:
+            data["types"] = [
+                {**item, "id": item["id_tipo"]} for item in responses["/tipos/"]
+            ]
+        if "/usuarios/" in responses:
+            data["users"] = [
+                {
+                    **item,
+                    "id": item["id_usuario"],
+                    "status": "Ativo" if item["status"] else "Inativo",
+                }
+                for item in responses["/usuarios/"]
+            ]
+        if "/materiais/" in responses or "/materiais/?apenas_ativos=false" in responses:
+            materials_response = responses.get(
+                "/materiais/?apenas_ativos=false",
+                responses.get("/materiais/", []),
+            )
+            data["materials"] = [
+                {**item, "id": item["id_material"], "valor": float(item["valor"])}
+                for item in materials_response
+            ]
+        if "/chamados/" in responses:
+            data["tickets"] = [
+                adapt_ticket(item) for item in responses["/chamados/"]
+            ]
+        if "/chamados/?limit=3" in responses:
+            data["tickets"] = [
+                adapt_ticket(item) for item in responses["/chamados/?limit=3"]
+            ]
+        data["dashboard"] = responses.get("/chamados/dashboard")
+
+    st.session_state.data = data
+    st.session_state.data_cache_token = token
+    st.session_state.data_cache_page = (
+        st.session_state.get("customer_navigation", "Chamados")
+        if st.session_state.user_role == "client"
+        else st.session_state.navigation
     )
-    return salt.hex(), password_hash.hex()
+    st.session_state.data_loaded_at = time.monotonic()
+    return data
 
 
-def authenticate_customer(email, password):
-    account = next(
-        (
-            item
-            for item in st.session_state.data["customer_accounts"]
-            if item["email"].casefold() == email.strip().casefold()
-        ),
-        None,
-    )
-    if account is None:
-        return None
+def invalidate_data_cache():
+    st.session_state.pop("data_loaded_at", None)
+    st.session_state.pop("data_cache_token", None)
+    st.session_state.pop("data_cache_page", None)
 
-    salt = bytes.fromhex(account["password_salt"])
-    _, password_hash = hash_customer_password(password, salt)
-    if not hmac.compare_digest(password_hash, account["password_hash"]):
-        return None
 
-    return next(
-        (
-            client
-            for client in st.session_state.data["clients"]
-            if client["id"] == account["client_id"]
-        ),
-        None,
-    )
+def api_request(method, path, token=None, **kwargs):
+    result = _api_request(method, path, token, **kwargs)
+    if method.upper() != "GET":
+        invalidate_data_cache()
+    return result
 
 
 def logout_user():
     st.session_state.authenticated = False
+    st.session_state.pop("access_token", None)
     st.session_state.pop("user_role", None)
+    st.session_state.pop("user_permissao", None)
     st.session_state.pop("user_name", None)
     st.session_state.pop("user_email", None)
     st.session_state.pop("client_id", None)
+    invalidate_data_cache()
     st.session_state.active_ticket_dialog = None
     st.session_state.navigation = "Visão geral"
     st.rerun()
@@ -319,22 +281,6 @@ def is_valid_cpf(value):
 def apply_styles():
     css_path = BASE_DIR / "assets" / "style.css"
     st.markdown(f"<style>{css_path.read_text(encoding='utf-8')}</style>", unsafe_allow_html=True)
-
-
-def render_clock():
-    js_path = BASE_DIR / "assets" / "interactions.js"
-    script = js_path.read_text(encoding="utf-8")
-    st.html(
-        f"""<div class="clock-wrap"><span class="clock-dot"></span>
-        <span id="live-clock">Carregando horário...</span></div>
-        <style>
-            .clock-wrap {{ color: #64748b;
-                font: 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }}
-            .clock-wrap {{ display: flex; align-items: center; gap: 8px; min-height: 28px; }}
-            .clock-dot {{ width: 7px; height: 7px; border-radius: 50%; background: #1D4ED8; }}
-        </style><script>{script}</script>""",
-        unsafe_allow_javascript=True,
-    )
 
 
 def page_title(eyebrow, title, description, action_label=None, action_target=None):
@@ -460,14 +406,18 @@ def ticket_opened_datetime(ticket):
 
 
 def can_update_tickets():
-    if not st.session_state.get("authenticated"):
-        return False
-    email = st.session_state.get("user_email")
-    user = next(
-        (item for item in st.session_state.data["users"] if item.get("email") == email),
-        None,
+    return bool(
+        st.session_state.get("authenticated")
+        and st.session_state.get("user_permissao", "").casefold()
+        in {"administrador", "atendente"}
     )
-    return bool(user and user["permissao"] in {"Administrador", "Atendente"})
+
+
+def is_admin():
+    return st.session_state.get("user_permissao", "").casefold() in {
+        "admin",
+        "administrador",
+    }
 
 
 def open_ticket_dialog(dialog_type, ticket_id):
@@ -492,26 +442,43 @@ def material_by_id(material_id):
     )
 
 
-def save_ticket_phase(ticket, new_status, selected_material_id=None, quantity=0):
+def save_ticket_phase(ticket, new_status, materials_used=None):
+    materials_used = materials_used or []
     if new_status == "Finalizado":
-        if selected_material_id is not None and quantity <= 0:
-            st.error("A quantidade do material deve ser maior que zero.")
-            return
-        if selected_material_id is not None:
-            material = material_by_id(selected_material_id)
-            if material is None:
-                st.error("O material selecionado não está mais cadastrado.")
+        for item in materials_used:
+            if item["quantidade"] <= 0:
+                st.error("A quantidade de cada material deve ser maior que zero.")
                 return
-            ticket.setdefault("materiais_utilizados", []).append(
-                {
-                    "material_id": material["id"],
-                    "descricao": material["descricao"],
-                    "quantidade": quantity,
-                    "valor_unitario": material["valor"],
-                }
+            material = material_by_id(item["material_id"])
+            if material is None:
+                st.error("Um dos materiais selecionados não está mais cadastrado.")
+                return
+    try:
+        api_request(
+            "PUT",
+            f"/chamados/{ticket['id']}",
+            st.session_state.access_token,
+            json={"status": "Em aberto" if new_status == "Chamados abertos" else new_status},
+        )
+    except APIError as exc:
+        st.error(f"Não foi possível atualizar o chamado: {exc}")
+        return
+
+    if new_status == "Finalizado" and materials_used:
+        try:
+            api_request(
+                "POST",
+                f"/chamados/{ticket['id']}/materiais/lote",
+                st.session_state.access_token,
+                json=materials_used,
             )
-        ticket["data_fechamento"] = date.today().strftime("%d/%m/%Y")
-    ticket["status"] = new_status
+        except APIError as exc:
+            st.session_state.flash_error = (
+                f"O chamado foi finalizado, mas os materiais não foram registrados: {exc}"
+            )
+            st.session_state.active_ticket_dialog = None
+            st.rerun()
+
     st.session_state.flash_success = f"Chamado #{ticket['id']} atualizado para {status_presentation(new_status)['label']}."
     st.session_state.active_ticket_dialog = None
     st.rerun()
@@ -519,19 +486,37 @@ def save_ticket_phase(ticket, new_status, selected_material_id=None, quantity=0)
 
 def render_ticket_card(ticket, compact=False):
     ticket_id = ticket["id"]
-    client = client_name(ticket["cliente_id"])
-    category = type_name(ticket["tipo_id"])
+    client = ticket.get("cliente_nome") or client_name(ticket["cliente_id"])
+    category = ticket.get("tipo_nome") or type_name(ticket["tipo_id"])
     phase = status_presentation(ticket["status"])
     classification_symbol = classification_icon(category)
     channel_symbol = CHANNEL_ICONS.get(ticket["canal_entrada"].casefold(), "support_agent")
     ticket_key = f"ticket-card-{ticket_id}"
 
     with st.container(border=True, key=ticket_key):
-        heading_col, phase_col = st.columns([5, 1.7], vertical_alignment="center")
+        can_edit_ticket = can_update_tickets() and ticket["status"] != "Finalizado"
+        card_columns = st.columns(
+            [5, 0.65, 1.7] if can_edit_ticket else [5, 1.7],
+            vertical_alignment="center",
+        )
+        heading_col = card_columns[0]
+        edit_col = card_columns[1] if can_edit_ticket else None
+        phase_col = card_columns[2] if can_edit_ticket else card_columns[1]
         with heading_col:
             with st.container(key=f"ticket-classification-{phase['class']}-{ticket_id}"):
                 st.badge(category, icon=f":material/{classification_symbol}:", color=phase["color"])
             st.markdown(f"**Chamado #{ticket_id}**")
+        if edit_col is not None:
+            with edit_col:
+                if st.button(
+                    " ",
+                    icon=":material/edit:",
+                    help="Editar chamado",
+                    type="tertiary",
+                    key=f"ticket_edit_{ticket_id}",
+                    width="stretch",
+                ):
+                    open_ticket_dialog("edit_ticket", ticket_id)
         with phase_col:
             with st.container(key=f"ticket-phase-{phase['class']}-{ticket_id}"):
                 st.badge(phase["label"], icon=f":material/{phase['icon']}:", color="gray")
@@ -586,7 +571,7 @@ def render_ticket_card(ticket, compact=False):
                 ):
                     open_ticket_dialog("finish", ticket_id)
         else:
-            action_columns = st.columns(3)
+            action_columns = st.columns(3 if can_update_tickets() else 1)
             with action_columns[0]:
                 if st.button(
                     "Ver detalhes",
@@ -621,7 +606,23 @@ def find_ticket(ticket_id):
     )
 
 
-@st.dialog("Detalhes do chamado", width="large", dismissible=False)
+def find_record(collection, record_id):
+    return next(
+        (item for item in st.session_state.data[collection] if item["id"] == record_id),
+        None,
+    )
+
+
+def clear_active_ticket_dialog():
+    st.session_state.active_ticket_dialog = None
+
+
+@st.dialog(
+    "Detalhes do chamado",
+    width="large",
+    dismissible=True,
+    on_dismiss=clear_active_ticket_dialog,
+)
 def show_ticket_details(ticket_id):
     ticket = find_ticket(ticket_id)
     if ticket is None:
@@ -633,7 +634,7 @@ def show_ticket_details(ticket_id):
     st.subheader(f"{type_name(ticket['tipo_id'])} · Chamado #{ticket_id}")
     st.markdown("**Descrição completa**")
     st.write(ticket.get("descricao", "Descrição não informada"))
-    client = next(
+    client = ticket.get("cliente") or next(
         (item for item in st.session_state.data["clients"] if item["id"] == ticket["cliente_id"]),
         None,
     )
@@ -665,7 +666,7 @@ def show_ticket_details(ticket_id):
             [photo["conteudo"] for photo in photos],
             caption=[photo["nome"] for photo in photos],
             alt=[f"Foto anexada ao chamado {ticket_id}" for _ in photos],
-            width="stretch",
+            width=320,
         )
 
     materials = ticket.get("materiais_utilizados", [])
@@ -734,22 +735,28 @@ def show_ticket_finish_dialog(ticket_id):
     st.markdown(f"**Fase atual:** {current['label']}")
     st.write("Confirme o encerramento e informe os materiais utilizados, se houver.")
     materials = st.session_state.data["materials"]
-    options = {"Não informar material": None}
-    options.update({material["descricao"]: material["id"] for material in materials})
-    selected_label = st.selectbox(
-        "Material utilizado",
-        list(options),
-        key=f"finish_material_{ticket_id}",
+    materials_by_id = {material["id"]: material for material in materials}
+    selected_material_ids = st.multiselect(
+        "Materiais utilizados",
+        list(materials_by_id),
+        format_func=lambda material_id: (
+            f"{materials_by_id[material_id]['descricao']} "
+            f"({materials_by_id[material_id]['unidade_medida']})"
+        ),
+        key=f"finish_materials_{ticket_id}",
     )
-    quantity = 0
-    if options[selected_label] is not None:
+    materials_used = []
+    for material_id in selected_material_ids:
+        material = materials_by_id[material_id]
         quantity = st.number_input(
-            "Quantidade utilizada",
-            min_value=1,
-            step=1,
-            value=1,
-            key=f"finish_quantity_{ticket_id}",
+            f"Quantidade — {material['descricao']} ({material['unidade_medida']})",
+            min_value=0.01,
+            step=1.0,
+            value=1.0,
+            format="%.2f",
+            key=f"finish_quantity_{ticket_id}_{material_id}",
         )
+        materials_used.append({"material_id": material_id, "quantidade": quantity})
     if not materials:
         st.caption("Não há materiais cadastrados. O chamado poderá ser finalizado sem material.")
     confirmed = st.checkbox(
@@ -770,11 +777,256 @@ def show_ticket_finish_dialog(ticket_id):
                 save_ticket_phase(
                     ticket,
                     "Finalizado",
-                    options[selected_label],
-                    int(quantity),
+                    materials_used,
                 )
     with cancel_col:
         if st.button("Cancelar", key=f"finish_cancel_{ticket_id}", width="stretch"):
+            st.session_state.active_ticket_dialog = None
+            st.rerun()
+
+
+@st.dialog("Editar chamado", width="large", dismissible=True, on_dismiss=clear_active_ticket_dialog)
+def show_ticket_edit_dialog(ticket_id):
+    ticket = find_ticket(ticket_id)
+    if ticket is None:
+        st.error("Este chamado não foi encontrado.")
+        return
+    if ticket["status"] == "Finalizado":
+        st.info("Chamados finalizados não podem ser editados.")
+        return
+    if not can_update_tickets():
+        st.error("Você não tem permissão para editar chamados.")
+        return
+
+    types = st.session_state.data["types"]
+    type_options = {item["descricao"]: item["id"] for item in types}
+    selected_type = next(
+        (name for name, item_id in type_options.items() if item_id == ticket["tipo_id"]),
+        None,
+    )
+    if selected_type is None:
+        st.error("A classificação deste chamado não está disponível para edição.")
+        return
+
+    channels = list(dict.fromkeys(CHANNELS + [ticket["canal_entrada"]]))
+    with st.form(f"edit_ticket_form_{ticket_id}"):
+        description = st.text_area(
+            "Descrição",
+            value=ticket.get("descricao", ""),
+            height=130,
+        )
+        first, second = st.columns(2)
+        with first:
+            selected_status = st.selectbox(
+                "Fase",
+                STATUSES,
+                index=STATUSES.index(ticket["status"]),
+                format_func=lambda value: status_presentation(value)["label"],
+            )
+            selected_channel = st.selectbox(
+                "Canal de entrada",
+                channels,
+                index=channels.index(ticket["canal_entrada"]),
+            )
+        with second:
+            selected_type = st.selectbox(
+                "Tipo do chamado",
+                list(type_options),
+                index=list(type_options).index(selected_type),
+            )
+            notify_whatsapp = st.checkbox(
+                "Notificar por WhatsApp",
+                value=ticket.get("notificar_whatsapp", False),
+            )
+            notify_email = st.checkbox(
+                "Notificar por e-mail",
+                value=ticket.get("notificar_email", False),
+            )
+        save_col, cancel_col = st.columns(2)
+        with save_col:
+            submitted = st.form_submit_button(
+                "Salvar alterações",
+                type="primary",
+                width="stretch",
+            )
+        with cancel_col:
+            cancelled = st.form_submit_button("Cancelar", width="stretch")
+
+    if cancelled:
+        st.session_state.active_ticket_dialog = None
+        st.rerun()
+    if submitted:
+        if not description.strip():
+            st.error("Informe uma descrição para o chamado.")
+            return
+        try:
+            api_request(
+                "PUT",
+                f"/chamados/{ticket_id}",
+                st.session_state.access_token,
+                json={
+                    "descricao": description.strip(),
+                    "tipo_id": type_options[selected_type],
+                    "status": (
+                        "Em aberto"
+                        if selected_status == "Chamados abertos"
+                        else selected_status
+                    ),
+                    "canal_entrada": selected_channel,
+                    "notificar_whatsapp": notify_whatsapp,
+                    "notificar_email": notify_email,
+                },
+            )
+        except APIError as exc:
+            st.error(f"Não foi possível atualizar o chamado: {exc}")
+        else:
+            st.session_state.flash_success = f"Chamado #{ticket_id} atualizado."
+            st.session_state.active_ticket_dialog = None
+            st.rerun()
+
+
+@st.dialog("Editar cliente", width="small", dismissible=True, on_dismiss=clear_active_ticket_dialog)
+def show_client_edit_dialog(client_id):
+    client = find_record("clients", client_id)
+    if client is None:
+        st.error("Este cliente não foi encontrado.")
+        return
+
+    with st.form(f"edit_client_form_{client_id}"):
+        active = st.checkbox("Cliente ativo", value=client["status"] == "Ativo")
+        submitted = st.form_submit_button(
+            "Salvar alterações",
+            type="primary",
+            width="stretch",
+        )
+    if submitted:
+        try:
+            api_request(
+                "PUT",
+                f"/clientes/{client_id}",
+                st.session_state.access_token,
+                json={"status": active},
+            )
+        except APIError as exc:
+            st.error(f"Não foi possível atualizar o cliente: {exc}")
+        else:
+            st.session_state.flash_success = f"Cliente {client['nome']} atualizado."
+            st.session_state.active_ticket_dialog = None
+            st.rerun()
+
+
+@st.dialog("Editar tipo", width="small", dismissible=True, on_dismiss=clear_active_ticket_dialog)
+def show_type_edit_dialog(type_id):
+    if not is_admin():
+        st.error("Somente administradores podem editar tipos.")
+        return
+    item_type = find_record("types", type_id)
+    if item_type is None:
+        st.error("Este tipo não foi encontrado.")
+        return
+
+    with st.form(f"edit_type_form_{type_id}"):
+        description = st.text_input("Descrição do tipo", value=item_type["descricao"])
+        submitted = st.form_submit_button(
+            "Salvar alterações",
+            type="primary",
+            width="stretch",
+        )
+    if submitted:
+        if not description.strip():
+            st.error("Informe a descrição do tipo.")
+            return
+        try:
+            api_request(
+                "PUT",
+                f"/tipos/{type_id}",
+                st.session_state.access_token,
+                json={"descricao": description.strip()},
+            )
+        except APIError as exc:
+            st.error(f"Não foi possível atualizar o tipo: {exc}")
+        else:
+            st.session_state.flash_success = f"Tipo {description.strip()} atualizado."
+            st.session_state.active_ticket_dialog = None
+            st.rerun()
+
+
+@st.dialog("Editar material", width="small", dismissible=True, on_dismiss=clear_active_ticket_dialog)
+def show_material_edit_dialog(material_id):
+    material = find_record("materials", material_id)
+    if material is None:
+        st.error("Este material não foi encontrado.")
+        return
+
+    with st.form(f"edit_material_form_{material_id}"):
+        description = st.text_input("Nome do material", value=material["descricao"])
+        unit = st.text_input("Unidade de medida", value=material["unidade_medida"])
+        value = st.number_input(
+            "Valor unitário (R$)",
+            min_value=0.0,
+            value=float(material["valor"]),
+            step=0.01,
+            format="%.2f",
+        )
+        active = st.checkbox("Material ativo", value=material["status"])
+        submitted = st.form_submit_button(
+            "Salvar alterações",
+            type="primary",
+            width="stretch",
+        )
+    if submitted:
+        if not description.strip() or not unit.strip():
+            st.error("Informe o nome e a unidade do material.")
+            return
+        try:
+            api_request(
+                "PUT",
+                f"/materiais/{material_id}",
+                st.session_state.access_token,
+                json={
+                    "descricao": description.strip(),
+                    "unidade_medida": unit.strip(),
+                    "valor": value,
+                    "status": active,
+                },
+            )
+        except APIError as exc:
+            st.error(f"Não foi possível atualizar o material: {exc}")
+        else:
+            st.session_state.flash_success = f"Material {description.strip()} atualizado."
+            st.session_state.active_ticket_dialog = None
+            st.rerun()
+
+
+@st.dialog("Editar usuário", width="small", dismissible=True, on_dismiss=clear_active_ticket_dialog)
+def show_user_edit_dialog(user_id):
+    if not is_admin():
+        st.error("Somente administradores podem editar usuários.")
+        return
+    user = find_record("users", user_id)
+    if user is None:
+        st.error("Este usuário não foi encontrado.")
+        return
+
+    with st.form(f"edit_user_form_{user_id}"):
+        active = st.checkbox("Usuário ativo", value=user["status"] == "Ativo")
+        submitted = st.form_submit_button(
+            "Salvar alterações",
+            type="primary",
+            width="stretch",
+        )
+    if submitted:
+        try:
+            api_request(
+                "PUT",
+                f"/usuarios/{user_id}",
+                st.session_state.access_token,
+                json={"status": active},
+            )
+        except APIError as exc:
+            st.error(f"Não foi possível atualizar o usuário: {exc}")
+        else:
+            st.session_state.flash_success = f"Usuário {user['nome']} atualizado."
             st.session_state.active_ticket_dialog = None
             st.rerun()
 
@@ -831,70 +1083,34 @@ def render_login():
                         width="stretch",
                     )
                 if submitted:
-                    normalized_email = email.strip().casefold()
-                    clients = st.session_state.data["clients"]
-                    existing_email = any(
-                        client.get("email", "").strip().casefold() == normalized_email
-                        for client in clients
-                        if normalized_email
-                    )
-                    existing_staff_email = any(
-                        user.get("email", "").strip().casefold() == normalized_email
-                        for user in st.session_state.data["users"]
-                        if normalized_email
-                    )
-                    cpf_digits = re.sub(r"\D", "", cpf)
-                    existing_cpf = any(
-                        re.sub(r"\D", "", client.get("cpf", "")) == cpf_digits
-                        for client in clients
-                    )
                     if not name.strip():
                         st.error("Informe seu nome completo.")
                     elif not is_valid_cpf(cpf):
                         st.error("Informe um CPF válido.")
-                    elif not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", normalized_email):
+                    elif not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email.strip()):
                         st.error("Informe um E-mail válido.")
-                    elif existing_email or existing_staff_email:
-                        st.error("Já existe um cadastro com esse E-mail.")
-                    elif existing_cpf:
-                        st.error("Já existe um cadastro com esse CPF.")
                     elif len(password) < 8:
                         st.error("A Senha deve ter pelo menos 8 caracteres.")
                     else:
-                        password_salt, password_hash = hash_customer_password(password)
-                        client_id = max(
-                            (client["id"] for client in clients),
-                            default=0,
-                        ) + 1
-                        clients.append(
-                            {
-                                "id": client_id,
-                                "nome": name.strip(),
-                                "cpf": cpf_digits,
-                                "email": email.strip(),
-                                "whatsapp": "",
-                                "idade": None,
-                                "estado": "",
-                                "cep": "",
-                                "bairro": "",
-                                "rua": "",
-                                "ponto_referencia": "",
-                                "status": "Ativo",
-                            }
-                        )
-                        st.session_state.data["customer_accounts"].append(
-                            {
-                                "client_id": client_id,
-                                "email": normalized_email,
-                                "password_salt": password_salt,
-                                "password_hash": password_hash,
-                            }
-                        )
-                        st.session_state.flash_registration = (
-                            "Cadastro concluído. Entre com seu E-mail e sua Senha."
-                        )
-                        st.session_state.login_view = "login"
-                        st.rerun()
+                        try:
+                            api_request(
+                                "POST",
+                                "/clientes/conta/registrar",
+                                json={
+                                    "nome": name.strip(),
+                                    "cpf": re.sub(r"\D", "", cpf),
+                                    "email": email.strip(),
+                                    "senha": password,
+                                },
+                            )
+                        except APIError as exc:
+                            st.error(f"Não foi possível concluir o cadastro: {exc}")
+                        else:
+                            st.session_state.flash_registration = (
+                                "Cadastro concluído. Entre com seu E-mail e sua Senha."
+                            )
+                            st.session_state.login_view = "login"
+                            st.rerun()
                 if st.button(
                     "Voltar para Entrar",
                     key="registration_back_to_login",
@@ -906,14 +1122,12 @@ def render_login():
                 with st.form("login_form", clear_on_submit=False, border=False):
                     email = st.text_input(
                         "E-mail",
-                        value=DEMO_EMAIL,
                         key="login_email",
                         type="email",
                         placeholder="nome@exemplo.com",
                     )
                     password = st.text_input(
                         "Senha",
-                        value=DEMO_PASSWORD,
                         key="login_password",
                         type="password",
                         placeholder="Digite sua senha",
@@ -933,24 +1147,54 @@ def render_login():
                         st.error("Informe sua Senha.")
                     else:
                         with st.spinner("Validando seu acesso..."):
-                            if (
-                                email.strip().casefold() == DEMO_EMAIL.casefold()
-                                and password == DEMO_PASSWORD
-                            ):
+                            token = None
+                            try:
+                                result = api_request(
+                                    "POST",
+                                    "/auth/login",
+                                    data={"username": email.strip(), "password": password},
+                                )
+                                token = result["access_token"]
+                                user = api_request("GET", "/auth/me", token)
+                                st.session_state.access_token = token
                                 st.session_state.authenticated = True
                                 st.session_state.user_role = "staff"
-                                st.session_state.user_name = DEMO_USER
-                                st.session_state.user_email = DEMO_EMAIL
+                                st.session_state.user_name = user["nome"]
+                                st.session_state.user_email = user["email"]
+                                st.session_state.user_permissao = user["permissao"]
                                 st.rerun()
-                            client = authenticate_customer(email, password)
-                            if client:
-                                st.session_state.authenticated = True
-                                st.session_state.user_role = "client"
-                                st.session_state.user_name = client["nome"]
-                                st.session_state.user_email = client["email"]
-                                st.session_state.client_id = client["id"]
-                                st.rerun()
-                            st.error("E-mail ou senha inválidos. Confira os dados e tente novamente.")
+                            except APIError as staff_error:
+                                if staff_error.status_code != 401:
+                                    st.error(f"Não foi possível validar o acesso: {staff_error}")
+                                else:
+                                    try:
+                                        result = api_request(
+                                            "POST",
+                                            "/clientes/conta/login",
+                                            json={
+                                                "email": email.strip(),
+                                                "senha": password,
+                                            },
+                                        )
+                                        st.session_state.access_token = result["access_token"]
+                                        st.session_state.authenticated = True
+                                        st.session_state.user_role = "client"
+                                        client = api_request(
+                                            "GET",
+                                            "/clientes/conta/me",
+                                            result["access_token"],
+                                        )
+                                        st.session_state.user_name = client["nome"]
+                                        st.session_state.user_email = client["email"]
+                                        st.session_state.client_id = client["id_cliente"]
+                                        st.rerun()
+                                    except APIError as client_error:
+                                        if client_error.status_code == 401:
+                                            st.error(
+                                                "E-mail ou senha inválidos. Confira os dados e tente novamente."
+                                            )
+                                        else:
+                                            st.error(f"Não foi possível validar o acesso: {client_error}")
                 if "flash_registration" in st.session_state:
                     st.success(st.session_state.pop("flash_registration"))
                 if st.button(
@@ -963,7 +1207,7 @@ def render_login():
                     st.rerun()
 
 
-def render_customer_ticket_form(client):
+def render_customer_ticket_form():
     data = st.session_state.data
     if not data["types"]:
         st.info("Não há classificações disponíveis para abrir um chamado.")
@@ -1002,30 +1246,41 @@ def render_customer_ticket_form(client):
         elif len(photos) > 5:
             st.error("Anexe no máximo 5 fotos por chamado.")
         else:
-            ticket_id = data["next_ticket_id"]
-            data["tickets"].append(
-                {
-                    "id": ticket_id,
-                    "cliente_id": client["id"],
-                    "tipo_id": type_options[selected_type],
-                    "data_abertura": datetime.now().strftime("%d/%m/%Y %H:%M"),
-                    "data_fechamento": "",
-                    "canal_entrada": "Portal",
-                    "status": "Chamados abertos",
-                    "descricao": description.strip(),
-                    "notificar_whatsapp": False,
-                    "notificar_email": False,
-                    "fotos": [
-                        {"nome": photo.name, "conteudo": photo.getvalue()}
-                        for photo in photos
-                    ],
-                    "materiais_utilizados": [],
-                }
-            )
-            data["next_ticket_id"] += 1
-            st.session_state.customer_navigation = "Chamados"
-            st.session_state.flash_success = f"Chamado #{ticket_id} enviado para a equipe."
-            st.rerun()
+            try:
+                ticket = api_request(
+                    "POST",
+                    "/clientes/conta/chamados",
+                    st.session_state.access_token,
+                    json={
+                        "tipo_id": type_options[selected_type],
+                        "descricao": description.strip(),
+                    },
+                )
+            except APIError as exc:
+                st.error(f"Não foi possível criar o chamado: {exc}")
+            else:
+                if photos:
+                    try:
+                        api_request(
+                            "POST",
+                            f"/clientes/conta/chamados/{ticket['id_chamado']}/fotos",
+                            st.session_state.access_token,
+                            files=[
+                                ("fotos", (photo.name, photo.getvalue(), photo.type))
+                                for photo in photos
+                            ],
+                        )
+                    except APIError as exc:
+                        st.error(
+                            f"O chamado #{ticket['id_chamado']} foi criado, "
+                            f"mas as fotos não foram enviadas: {exc}"
+                        )
+                        return
+                st.session_state.customer_navigation = "Chamados"
+                st.session_state.flash_success = (
+                    f"Chamado #{ticket['id_chamado']} enviado para a equipe."
+                )
+                st.rerun()
 
     if st.button("Cancelar", key="customer_ticket_cancel"):
         st.session_state.customer_navigation = "Chamados"
@@ -1033,14 +1288,7 @@ def render_customer_ticket_form(client):
 
 
 def render_customer_portal():
-    client = next(
-        (
-            item
-            for item in st.session_state.data["clients"]
-            if item["id"] == st.session_state.get("client_id")
-        ),
-        None,
-    )
+    client = st.session_state.data["clients"][0] if st.session_state.data["clients"] else None
     if client is None:
         st.error("Não foi possível localizar o cadastro vinculado a esta conta. Entre novamente.")
         if st.button("Voltar para o login", key="customer_missing_profile_logout"):
@@ -1057,7 +1305,7 @@ def render_customer_portal():
             "Novo chamado",
             "Envie uma solicitação para a equipe da Defesa Civil.",
         )
-        render_customer_ticket_form(client)
+        render_customer_ticket_form()
     else:
         page_title(
             "ÁREA DO CLIENTE",
@@ -1070,11 +1318,7 @@ def render_customer_portal():
             unsafe_allow_html=True,
         )
         tickets = sorted(
-            (
-                ticket
-                for ticket in st.session_state.data["tickets"]
-                if ticket["cliente_id"] == client["id"]
-            ),
+            st.session_state.data["tickets"],
             key=ticket_opened_datetime,
             reverse=True,
         )
@@ -1087,6 +1331,15 @@ def render_customer_portal():
 
 def render_dashboard():
     data = st.session_state.data
+    dashboard = data["dashboard"] or {
+        "abertos": 0,
+        "em_andamento": 0,
+        "aguardando_retorno": 0,
+        "finalizados": 0,
+        "total": 0,
+        "por_tipo": {},
+        "abertos_por_tipo": {},
+    }
     page_title(
         "VISÃO GERAL",
         "Central de atendimento",
@@ -1105,7 +1358,14 @@ def render_dashboard():
     columns = st.columns(4)
     for column, status in zip(columns, STATUSES):
         presentation = status_presentation(status)
-        total = sum(ticket["status"] == status for ticket in tickets)
+        total = dashboard[
+            {
+                "Chamados abertos": "abertos",
+                "Em andamento": "em_andamento",
+                "Aguardando retorno": "aguardando_retorno",
+                "Finalizado": "finalizados",
+            }[status]
+        ]
         with column:
             with st.container(border=True, key=f"dashboard-metric-{presentation['class']}"):
                 st.badge(
@@ -1125,14 +1385,21 @@ def render_dashboard():
     with chart_columns[0]:
         with st.container(border=True, key="dashboard-chart-status"):
             st.markdown("**Chamados por fase**")
-            st.metric("Total geral de chamados", len(tickets))
-            status_counts = Counter(ticket["status"] for ticket in tickets)
+            st.metric("Total geral de chamados", dashboard["total"])
+            status_counts = {
+                "Chamados abertos": dashboard["abertos"],
+                "Em andamento": dashboard["em_andamento"],
+                "Aguardando retorno": dashboard["aguardando_retorno"],
+                "Finalizado": dashboard["finalizados"],
+            }
             status_data = [
                 {
                     "fase": status_presentation(status)["label"],
                     "quantidade": status_counts[status],
                     "percentual": (
-                        100 * status_counts[status] / len(tickets) if tickets else 0
+                        100 * status_counts[status] / dashboard["total"]
+                        if dashboard["total"]
+                        else 0
                     ),
                 }
                 for status in STATUSES
@@ -1152,24 +1419,20 @@ def render_dashboard():
     with chart_columns[1]:
         with st.container(border=True, key="dashboard-chart-classification"):
             st.markdown("**Classificações em aberto**")
-            open_by_type = Counter(
-                type_name(ticket["tipo_id"])
-                for ticket in tickets
-                if ticket["status"] == "Chamados abertos"
-            )
+            open_by_type = dashboard["abertos_por_tipo"]
             open_total = sum(open_by_type.values())
             st.metric("Total de chamados em aberto", open_total)
             classification_data = [
                 {
-                    "classificacao": item_type["descricao"],
-                    "quantidade": open_by_type[item_type["descricao"]],
+                    "classificacao": classification,
+                    "quantidade": quantity,
                     "percentual": (
-                        100 * open_by_type[item_type["descricao"]] / open_total
+                        100 * quantity / open_total
                         if open_total
                         else 0
                     ),
                 }
-                for item_type in data["types"]
+                for classification, quantity in open_by_type.items()
             ]
             if classification_data:
                 classification_chart = horizontal_bar_chart(
@@ -1323,36 +1586,50 @@ def render_new_ticket():
             elif len(photos) > 5:
                 st.error("Anexe no máximo 5 fotos por chamado.")
             else:
-                ticket_id = data["next_ticket_id"]
-                data["tickets"].append(
-                    {
-                        "id": ticket_id,
-                        "cliente_id": client_options[selected_client],
-                        "tipo_id": type_options[selected_type],
-                        "data_abertura": datetime.now().strftime("%d/%m/%Y %H:%M"),
-                        "data_fechamento": "",
-                        "canal_entrada": channel,
-                        "status": status,
-                        "descricao": description.strip(),
-                        "notificar_whatsapp": notify_whatsapp,
-                        "notificar_email": notify_email,
-                        "fotos": [
-                            {"nome": photo.name, "conteudo": photo.getvalue()}
-                            for photo in photos
-                        ],
-                        "materiais_utilizados": [],
-                    }
-                )
-                data["next_ticket_id"] += 1
-                st.success(f"Chamado #{ticket_id} criado.")
-                st.session_state.navigation = "Chamados"
-                st.rerun()
+                try:
+                    ticket = api_request(
+                        "POST",
+                        "/chamados/",
+                        st.session_state.access_token,
+                        json={
+                            "cliente_id": client_options[selected_client],
+                            "tipo_id": type_options[selected_type],
+                            "status": "Em aberto" if status == "Chamados abertos" else status,
+                            "canal_entrada": channel,
+                            "descricao": description.strip(),
+                            "notificar_whatsapp": notify_whatsapp,
+                            "notificar_email": notify_email,
+                        },
+                    )
+                except APIError as exc:
+                    st.error(f"Não foi possível criar o chamado: {exc}")
+                else:
+                    if photos:
+                        try:
+                            api_request(
+                                "POST",
+                                f"/chamados/{ticket['id_chamado']}/fotos",
+                                st.session_state.access_token,
+                                files=[
+                                    ("fotos", (photo.name, photo.getvalue(), photo.type))
+                                    for photo in photos
+                                ],
+                            )
+                        except APIError as exc:
+                            st.error(
+                                f"O chamado #{ticket['id_chamado']} foi criado, "
+                                f"mas as fotos não foram enviadas: {exc}"
+                            )
+                            return
+                    st.success(f"Chamado #{ticket['id_chamado']} criado.")
+                    st.session_state.navigation = "Chamados"
+                    st.rerun()
 
 
 def render_clients():
     page_title("CADASTROS", "Clientes", "Gerencie os dados de contato e endereço dos clientes.")
     with st.expander("＋ Cadastrar cliente", expanded=False):
-        with st.form("new_client_form", clear_on_submit=True):
+        with st.form("new_client_form", clear_on_submit=False):
             col1, col2 = st.columns(2)
             with col1:
                 name = st.text_input("Nome completo")
@@ -1360,7 +1637,6 @@ def render_clients():
                 email = st.text_input("E-mail")
                 whatsapp = st.text_input("WhatsApp")
             with col2:
-                age = st.number_input("Idade", min_value=0, max_value=120, value=18)
                 state = st.text_input("Estado (UF)", max_chars=2)
                 cep = st.text_input("CEP", max_chars=9)
                 neighborhood = st.text_input("Bairro")
@@ -1370,26 +1646,34 @@ def render_clients():
             if submitted:
                 if not name.strip():
                     st.error("Informe o nome do cliente.")
+                elif not is_valid_cpf(cpf):
+                    st.error("Informe um CPF válido.")
+                elif not state.strip():
+                    st.error("Informe a UF do cliente.")
                 else:
-                    clients = st.session_state.data["clients"]
-                    clients.append(
-                        {
-                            "id": max((client["id"] for client in clients), default=0) + 1,
-                            "nome": name.strip(),
-                            "cpf": cpf.strip(),
-                            "email": email.strip(),
-                            "whatsapp": whatsapp.strip(),
-                            "idade": int(age),
-                            "estado": state.strip().upper(),
-                            "cep": cep.strip(),
-                            "bairro": neighborhood.strip(),
-                            "rua": street.strip(),
-                            "ponto_referencia": reference.strip(),
-                            "status": "Ativo",
-                        }
-                    )
-                    st.success("Cliente cadastrado.")
-                    st.rerun()
+                    try:
+                        api_request(
+                            "POST",
+                            "/clientes/",
+                            st.session_state.access_token,
+                            json={
+                                "nome": name.strip(),
+                                "cpf": re.sub(r"\D", "", cpf),
+                                "email": email.strip() or None,
+                                "whatsapp": whatsapp.strip() or None,
+                                "cidade": os.getenv("FOURPULSE_CIDADE", "Concórdia"),
+                                "estado": state.strip().upper(),
+                                "cep": cep.strip() or None,
+                                "bairro": neighborhood.strip() or None,
+                                "rua": street.strip() or None,
+                                "ponto_referencia": reference.strip() or None,
+                            },
+                        )
+                    except APIError as exc:
+                        st.error(f"Não foi possível cadastrar o cliente: {exc}")
+                    else:
+                        st.session_state.flash_success = "Cliente cadastrado."
+                        st.rerun()
 
     clients = st.session_state.data["clients"]
     st.caption(f"{len(clients)} cliente(s) cadastrado(s)")
@@ -1402,7 +1686,7 @@ def render_clients():
         )
     for client in clients:
         with st.container(border=True):
-            col1, col2, col3 = st.columns([2, 2, 1])
+            col1, col2, col3, edit_col = st.columns([2, 2, 1, 0.4])
             with col1:
                 st.markdown(f"**{client['nome']}**")
                 st.caption(f"CPF: {client['cpf'] or 'Não informado'} · {client['estado'] or 'UF não informada'}")
@@ -1411,6 +1695,16 @@ def render_clients():
                 st.caption(client["whatsapp"] or "WhatsApp não informado")
             with col3:
                 st.markdown(status_badge(client["status"]), unsafe_allow_html=True)
+            with edit_col:
+                if st.button(
+                    " ",
+                    icon=":material/edit:",
+                    help="Editar cliente",
+                    type="tertiary",
+                    key=f"client_edit_{client['id']}",
+                    width="stretch",
+                ):
+                    open_ticket_dialog("edit_client", client["id"])
             address = " · ".join(
                 value
                 for value in [
@@ -1438,15 +1732,18 @@ def render_types():
             ):
                 st.error("Este tipo já está cadastrado.")
             else:
-                types = st.session_state.data["types"]
-                types.append(
-                    {
-                        "id": max((item["id"] for item in types), default=0) + 1,
-                        "descricao": description.strip(),
-                    }
-                )
-                st.success("Tipo adicionado.")
-                st.rerun()
+                try:
+                    api_request(
+                        "POST",
+                        "/tipos/",
+                        st.session_state.access_token,
+                        json={"descricao": description.strip()},
+                    )
+                except APIError as exc:
+                    st.error(f"Não foi possível adicionar o tipo: {exc}")
+                else:
+                    st.success("Tipo adicionado.")
+                    st.rerun()
 
     types = st.session_state.data["types"]
     if not types:
@@ -1458,12 +1755,25 @@ def render_types():
         )
     for item_type in types:
         with st.container(border=True):
-            col1, col2 = st.columns([4, 1])
+            col1, edit_col, col2 = st.columns([4, 0.4, 1])
             with col1:
                 st.markdown(f"**{item_type['descricao']}**")
                 st.caption(f"ID do tipo: {item_type['id']}")
+            if is_admin():
+                with edit_col:
+                    if st.button(
+                        " ",
+                        icon=":material/edit:",
+                        help="Editar tipo",
+                        type="tertiary",
+                        key=f"type_edit_{item_type['id']}",
+                        width="stretch",
+                    ):
+                        open_ticket_dialog("edit_type", item_type["id"])
             with col2:
-                count = sum(ticket["tipo_id"] == item_type["id"] for ticket in st.session_state.data["tickets"])
+                count = (st.session_state.data["dashboard"] or {}).get(
+                    "por_tipo", {}
+                ).get(item_type["descricao"], 0)
                 st.metric("Chamados", count)
 
 
@@ -1483,16 +1793,23 @@ def render_materials():
                 ):
                     st.error("Este material já está cadastrado.")
                 else:
-                    materials = st.session_state.data["materials"]
-                    materials.append(
-                        {
-                            "id": max((item["id"] for item in materials), default=0) + 1,
-                            "descricao": description.strip(),
-                            "valor": float(value),
-                        }
-                    )
-                    st.success("Material cadastrado.")
-                    st.rerun()
+                    try:
+                        api_request(
+                            "POST",
+                            "/materiais/",
+                            st.session_state.access_token,
+                            json={
+                                "descricao": description.strip(),
+                                "unidade_medida": "UN",
+                                "valor": value,
+                                "status": True,
+                            },
+                        )
+                    except APIError as exc:
+                        st.error(f"Não foi possível cadastrar o material: {exc}")
+                    else:
+                        st.success("Material cadastrado.")
+                        st.rerun()
 
     materials = st.session_state.data["materials"]
     st.caption(f"{len(materials)} material(is) cadastrado(s)")
@@ -1505,21 +1822,82 @@ def render_materials():
         )
     for material in materials:
         with st.container(border=True):
-            name_col, value_col = st.columns([3, 1])
+            name_col, edit_col, value_col = st.columns([3, 0.4, 1])
             with name_col:
                 st.markdown(f"**{material['descricao']}**")
                 st.caption(f"ID do material: {material['id']}")
+            with edit_col:
+                if st.button(
+                    " ",
+                    icon=":material/edit:",
+                    help="Editar material",
+                    type="tertiary",
+                    key=f"material_edit_{material['id']}",
+                    width="stretch",
+                ):
+                    open_ticket_dialog("edit_material", material["id"])
             with value_col:
                 st.metric("Valor unitário", f"R$ {material['valor']:.2f}".replace(".", ","))
+            if not material["status"]:
+                st.caption("Material inativo")
 
 
 def render_users():
     page_title("CONFIGURAÇÕES", "Usuários", "Visualize os acessos da equipe de atendimento.")
+    admin = is_admin()
+    if admin:
+        with st.expander("＋ Cadastrar usuário", expanded=False):
+            with st.form("new_user_form", clear_on_submit=False):
+                name = st.text_input("Nome completo")
+                cpf = st.text_input("CPF")
+                email = st.text_input("E-mail", type="email")
+                password = st.text_input(
+                    "Senha",
+                    type="password",
+                    help="Use pelo menos 8 caracteres.",
+                )
+                permission = st.selectbox(
+                    "Permissão",
+                    ["Operador", "Atendente", "Administrador"],
+                )
+                submitted = st.form_submit_button("Salvar usuário", type="primary")
+                if submitted:
+                    if not name.strip():
+                        st.error("Informe o nome do usuário.")
+                    elif not is_valid_cpf(cpf):
+                        st.error("Informe um CPF válido.")
+                    elif not re.fullmatch(
+                        r"[^@\s]+@[^@\s]+\.[^@\s]+", email.strip()
+                    ):
+                        st.error("Informe um e-mail válido.")
+                    elif len(password) < 8:
+                        st.error("A senha deve ter pelo menos 8 caracteres.")
+                    else:
+                        try:
+                            api_request(
+                                "POST",
+                                "/usuarios/",
+                                st.session_state.access_token,
+                                json={
+                                    "nome": name.strip(),
+                                    "cpf": re.sub(r"\D", "", cpf),
+                                    "email": email.strip(),
+                                    "senha": password,
+                                    "permissao": permission,
+                                    "status": True,
+                                },
+                            )
+                        except APIError as exc:
+                            st.error(f"Não foi possível cadastrar o usuário: {exc}")
+                        else:
+                            st.session_state.flash_success = "Usuário cadastrado."
+                            st.rerun()
+
     users = st.session_state.data["users"]
     st.caption(f"{len(users)} usuário(s) cadastrado(s)")
     for user in users:
         with st.container(border=True):
-            col1, col2, col3 = st.columns([2, 2, 1])
+            col1, col2, col3, edit_col = st.columns([2, 2, 1, 0.4])
             with col1:
                 st.markdown(f"**{user['nome']}**")
                 st.caption(user.get("email", "E-mail não informado"))
@@ -1528,6 +1906,17 @@ def render_users():
                 st.caption(f"ID do usuário: {user['id']}")
             with col3:
                 st.markdown(status_badge(user["status"]), unsafe_allow_html=True)
+            if admin:
+                with edit_col:
+                    if st.button(
+                        " ",
+                        icon=":material/edit:",
+                        help="Editar usuário",
+                        type="tertiary",
+                        key=f"user_edit_{user['id']}",
+                        width="stretch",
+                    ):
+                        open_ticket_dialog("edit_user", user["id"])
 
 
 st.set_page_config(
@@ -1541,6 +1930,14 @@ apply_styles()
 
 if not st.session_state.authenticated:
     render_login()
+    st.stop()
+
+try:
+    st.session_state.data = load_data()
+except APIError as exc:
+    st.error(f"Não foi possível carregar os dados do banco: {exc}")
+    if st.session_state.get("access_token") and st.button("Sair", key="api_error_logout"):
+        logout_user()
     st.stop()
 
 if st.session_state.get("user_role") == "client":
@@ -1569,6 +1966,7 @@ if st.session_state.get("user_role") == "client":
                 width="stretch",
             ):
                 st.session_state.customer_navigation = module
+                st.session_state.active_ticket_dialog = None
                 st.rerun()
         if st.button("Sair", icon=":material/logout:", key="customer_logout"):
             logout_user()
@@ -1615,15 +2013,16 @@ with st.sidebar:
                 width="stretch",
             ):
                 st.session_state.navigation = page
+                st.session_state.active_ticket_dialog = None
                 st.rerun()
         with st.container(key="sidebar-profile"):
             with st.popover(
-                st.session_state.get("user_name", DEMO_USER),
+                st.session_state.get("user_name", "Usuário"),
                 icon=":material/account_circle:",
                 width="stretch",
             ):
-                st.caption(st.session_state.get("user_name", DEMO_USER))
-                st.caption(DEMO_EMAIL)
+                st.caption(st.session_state.get("user_name", "Usuário"))
+                st.caption(st.session_state.get("user_email", ""))
                 if st.button(
                     "Sair",
                     icon=":material/logout:",
@@ -1644,6 +2043,8 @@ page_renderers = {
 }
 if "flash_success" in st.session_state:
     st.success(st.session_state.pop("flash_success"))
+if "flash_error" in st.session_state:
+    st.error(st.session_state.pop("flash_error"))
 
 page_renderers[selected_page]()
 active_dialog = st.session_state.active_ticket_dialog
@@ -1653,6 +2054,11 @@ if active_dialog:
         "details": show_ticket_details,
         "phase": show_ticket_phase_dialog,
         "finish": show_ticket_finish_dialog,
+        "edit_ticket": show_ticket_edit_dialog,
+        "edit_client": show_client_edit_dialog,
+        "edit_type": show_type_edit_dialog,
+        "edit_material": show_material_edit_dialog,
+        "edit_user": show_user_edit_dialog,
     }
     dialog_renderer = dialog_renderers.get(dialog_type)
     if dialog_renderer:

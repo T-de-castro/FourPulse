@@ -23,6 +23,17 @@ CREATE TABLE clientes (
     status BOOLEAN NOT NULL DEFAULT TRUE
 );
 
+CREATE TABLE cliente_contas (
+    id_conta INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    cliente_id INTEGER NOT NULL UNIQUE,
+    email VARCHAR(150) NOT NULL UNIQUE,
+    senha_hash VARCHAR NOT NULL,
+    CONSTRAINT fk_cliente_conta_cliente
+        FOREIGN KEY (cliente_id)
+        REFERENCES clientes(id_cliente)
+        ON DELETE CASCADE
+);
+
 CREATE TABLE tipos (
     id_tipo INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     descricao VARCHAR(255) NOT NULL
@@ -37,6 +48,7 @@ CREATE TABLE chamados (
             canal_entrada IN (
                 'WhatsApp',
                 'E-mail',
+                'Telefone',
                 'Portal',
                 'Presencialmente'
             )
@@ -53,6 +65,7 @@ CREATE TABLE chamados (
         ),
 
     data_abertura TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    data_limite TIMESTAMP,
     data_fechamento TIMESTAMP,
 
     notificar_email BOOLEAN NOT NULL DEFAULT FALSE,
@@ -69,6 +82,13 @@ CREATE TABLE chamados (
         FOREIGN KEY (tipo_id)
         REFERENCES tipos(id_tipo)
 );
+
+CREATE INDEX ix_chamados_cliente_abertura
+    ON chamados (cliente_id, data_abertura DESC);
+CREATE INDEX ix_chamados_status_abertura
+    ON chamados (status, data_abertura DESC);
+CREATE INDEX ix_chamados_tipo_id
+    ON chamados (tipo_id);
 
 CREATE TABLE chamado_fotos (
     id_foto INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,

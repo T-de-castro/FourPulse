@@ -32,10 +32,10 @@ def normalizar_canal(canal_str: Optional[str]) -> Optional[str]:
         "whatsapp": CanalEntrada.WHATSAPP.value,
         "e-mail": CanalEntrada.EMAIL.value,
         "email": CanalEntrada.EMAIL.value,
+        "telefone": CanalEntrada.TELEFONE.value,
         "portal": CanalEntrada.PORTAL.value,
         "presencialmente": CanalEntrada.PRESENCIALMENTE.value,
         "presencial": CanalEntrada.PRESENCIALMENTE.value,
-        "telefone": CanalEntrada.WHATSAPP.value,  # fallback amigável para check constraint
     }
     return mapa.get(canal_str.strip().lower(), canal_str)
 
@@ -123,3 +123,4 @@ class DashboardOut(BaseModel):
     finalizados: int
     total: int
     por_tipo: dict[str, int]
+    abertos_por_tipo: dict[str, int]

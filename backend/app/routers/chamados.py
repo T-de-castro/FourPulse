@@ -1,12 +1,12 @@
-import os
 import re
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from sqlalchemy import case, func
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.auth.dependencies import get_usuario_atual
 from app.database import get_db
@@ -40,25 +40,36 @@ def dashboard(
     db: Session = Depends(get_db),
     _: Usuario = Depends(get_usuario_atual),
 ):
-    todos = db.query(Chamado).all()
+    status_counts = dict(
+        db.query(Chamado.status, func.count(Chamado.id_chamado))
+        .group_by(Chamado.status)
+        .all()
+    )
+    open_statuses = [StatusChamado.ABERTO.value, "Chamados abertos", "aberto"]
+    type_counts = (
+        db.query(
+            Tipo.descricao,
+            func.count(Chamado.id_chamado),
+            func.sum(case((Chamado.status.in_(open_statuses), 1), else_=0)),
+        )
+        .outerjoin(Chamado, Chamado.tipo_id == Tipo.id_tipo)
+        .group_by(Tipo.id_tipo, Tipo.descricao)
+        .all()
+    )
+    por_tipo = {name: total for name, total, _ in type_counts}
+    abertos_por_tipo = {name: opened or 0 for name, _, opened in type_counts}
 
-    abertos = sum(1 for c in todos if c.status in [StatusChamado.ABERTO.value, "Chamados abertos", "aberto"])
-    em_andamento = sum(1 for c in todos if c.status in [StatusChamado.EM_ANDAMENTO.value, "em_atendimento"])
-    aguardando_retorno = sum(1 for c in todos if c.status == StatusChamado.AGUARDANDO_RETORNO.value)
-    finalizados = sum(1 for c in todos if c.status in [StatusChamado.FINALIZADO.value, "finalizado"])
-
-    por_tipo: dict[str, int] = {}
-    for c in todos:
-        nome_tipo = c.tipo.descricao if c.tipo else "Sem tipo"
-        por_tipo[nome_tipo] = por_tipo.get(nome_tipo, 0) + 1
+    def count_status(*values):
+        return sum(status_counts.get(value, 0) for value in values)
 
     return DashboardOut(
-        abertos=abertos,
-        em_andamento=em_andamento,
-        aguardando_retorno=aguardando_retorno,
-        finalizados=finalizados,
-        total=len(todos),
+        abertos=count_status(*open_statuses),
+        em_andamento=count_status(StatusChamado.EM_ANDAMENTO.value, "em_atendimento"),
+        aguardando_retorno=count_status(StatusChamado.AGUARDANDO_RETORNO.value),
+        finalizados=count_status(StatusChamado.FINALIZADO.value, "finalizado"),
+        total=sum(status_counts.values()),
         por_tipo=por_tipo,
+        abertos_por_tipo=abertos_por_tipo,
     )
 
 
@@ -69,6 +80,7 @@ def listar_chamados(
     cliente_id: Optional[int] = None,
     id_tipo: Optional[int] = None,
     id_cliente: Optional[int] = None,
+    limit: Optional[int] = Query(None, ge=1, le=500),
     db: Session = Depends(get_db),
     _: Usuario = Depends(get_usuario_atual),
 ):
@@ -81,6 +93,14 @@ def listar_chamados(
         query = query.filter(Chamado.tipo_id == t_id)
     if c_id:
         query = query.filter(Chamado.cliente_id == c_id)
+    query = query.options(
+        joinedload(Chamado.cliente),
+        joinedload(Chamado.tipo),
+        selectinload(Chamado.fotos),
+        selectinload(Chamado.materiais).joinedload(ChamadoMaterial.material),
+    ).order_by(Chamado.data_abertura.desc(), Chamado.id_chamado.desc())
+    if limit is not None:
+        query = query.limit(limit)
     return query.all()
 
 
@@ -118,7 +138,17 @@ def buscar_chamado(
     db: Session = Depends(get_db),
     _: Usuario = Depends(get_usuario_atual),
 ):
-    chamado = db.query(Chamado).filter(Chamado.id_chamado == id_chamado).first()
+    chamado = (
+        db.query(Chamado)
+        .options(
+            joinedload(Chamado.cliente),
+            joinedload(Chamado.tipo),
+            selectinload(Chamado.fotos),
+            selectinload(Chamado.materiais).joinedload(ChamadoMaterial.material),
+        )
+        .filter(Chamado.id_chamado == id_chamado)
+        .first()
+    )
     if not chamado:
         raise HTTPException(status_code=404, detail="Chamado não encontrado")
     return chamado
@@ -134,13 +164,18 @@ def atualizar_chamado(
     chamado = db.query(Chamado).filter(Chamado.id_chamado == id_chamado).first()
     if not chamado:
         raise HTTPException(status_code=404, detail="Chamado não encontrado")
+    if chamado.status in {StatusChamado.FINALIZADO.value, "finalizado"}:
+        raise HTTPException(
+            status_code=400,
+            detail="Chamados finalizados não podem ser editados",
+        )
 
     payload = dados.model_dump(exclude_none=True, exclude={"id_tipo"})
     for campo, valor in payload.items():
         setattr(chamado, campo, valor)
 
     if chamado.status in [StatusChamado.FINALIZADO.value, "finalizado"] and not chamado.data_fechamento:
-        chamado.data_fechamento = datetime.utcnow()
+        chamado.data_fechamento = datetime.now(timezone.utc)
 
     db.commit()
     db.refresh(chamado)
@@ -204,6 +239,73 @@ def vincular_material_chamado(
     db.commit()
     db.refresh(vinculo)
     return vinculo
+
+
+@router.post(
+    "/{id_chamado}/materiais/lote",
+    response_model=List[ChamadoMaterialOut],
+    status_code=status.HTTP_201_CREATED,
+)
+def vincular_materiais_chamado(
+    id_chamado: int,
+    dados: List[ChamadoMaterialCreate],
+    db: Session = Depends(get_db),
+    _: Usuario = Depends(get_usuario_atual),
+):
+    chamado = db.query(Chamado).filter(Chamado.id_chamado == id_chamado).first()
+    if not chamado:
+        raise HTTPException(status_code=404, detail="Chamado não encontrado")
+    if not dados:
+        raise HTTPException(status_code=400, detail="Informe ao menos um material")
+
+    quantidades = {}
+    for item in dados:
+        if item.material_id is None:
+            raise HTTPException(status_code=400, detail="material_id é obrigatório")
+        quantidades[item.material_id] = (
+            quantidades.get(item.material_id, 0) + item.quantidade
+        )
+
+    materials = (
+        db.query(Material)
+        .filter(Material.id_material.in_(quantidades))
+        .all()
+    )
+    material_ids = {material.id_material for material in materials}
+    missing_ids = set(quantidades) - material_ids
+    if missing_ids:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Material(is) não encontrado(s): {', '.join(map(str, sorted(missing_ids)))}",
+        )
+
+    vinculos = (
+        db.query(ChamadoMaterial)
+        .filter(
+            ChamadoMaterial.chamado_id == id_chamado,
+            ChamadoMaterial.material_id.in_(quantidades),
+        )
+        .all()
+    )
+    vinculos_por_material = {vinculo.material_id: vinculo for vinculo in vinculos}
+    resultado = []
+    for material_id, quantidade in quantidades.items():
+        vinculo = vinculos_por_material.get(material_id)
+        if vinculo:
+            vinculo.quantidade += quantidade
+        else:
+            vinculo = ChamadoMaterial(
+                chamado_id=id_chamado,
+                material_id=material_id,
+                quantidade=quantidade,
+            )
+            db.add(vinculo)
+        resultado.append(vinculo)
+
+    db.commit()
+    for vinculo in resultado:
+        db.refresh(vinculo)
+    return resultado
 
 
 @router.put("/{id_chamado}/materiais/{id_material}", response_model=ChamadoMaterialOut)
@@ -304,7 +406,7 @@ async def upload_fotos_chamado(
     for file in fotos:
         nome_original = file.filename or "foto.jpg"
         nome_seguro = sanitizar_nome_arquivo(nome_original)
-        timestamp = int(datetime.utcnow().timestamp())
+        timestamp = int(datetime.now(timezone.utc).timestamp())
         uuid_sufixo = uuid.uuid4().hex[:6]
         nome_final = f"{timestamp}_{uuid_sufixo}_{nome_seguro}"
 
