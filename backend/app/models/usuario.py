@@ -14,4 +14,4 @@ class Usuario(Base):
 
     # Necessário para autenticação/login
     email = Column(String(150), unique=True, nullable=True, index=True)
-    senha_hash = Column(String, nullable=False)
+    senha_hash = Column("senha", String, nullable=False)

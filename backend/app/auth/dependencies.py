@@ -14,7 +14,7 @@ def get_usuario_atual(
     db: Session = Depends(get_db),
 ) -> Usuario:
     payload = decodificar_token(token)
-    if payload is None:
+    if payload is None or payload.get("tipo") == "cliente":
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token inválido ou expirado",

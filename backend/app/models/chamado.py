@@ -18,6 +18,7 @@ from app.database import Base
 class CanalEntrada(str, enum.Enum):
     WHATSAPP = "WhatsApp"
     EMAIL = "E-mail"
+    TELEFONE = "Telefone"
     PORTAL = "Portal"
     PRESENCIALMENTE = "Presencialmente"
 

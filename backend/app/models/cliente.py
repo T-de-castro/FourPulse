@@ -14,6 +14,10 @@ class Cliente(Base):
     estado = Column(String(2), nullable=False)
     email = Column(String(150), nullable=True)
     whatsapp = Column(String(20), nullable=True)
+    cep = Column(String(9), nullable=True)
+    rua = Column(String(255), nullable=True)
+    bairro = Column(String(100), nullable=True)
+    ponto_referencia = Column(String(255), nullable=True)
     status = Column(Boolean, default=True)
 
     chamados = relationship("Chamado", back_populates="cliente")

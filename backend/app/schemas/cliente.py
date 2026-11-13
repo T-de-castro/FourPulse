@@ -10,6 +10,10 @@ class ClienteBase(BaseModel):
     estado: str
     email: Optional[str] = None
     whatsapp: Optional[str] = None
+    cep: Optional[str] = None
+    rua: Optional[str] = None
+    bairro: Optional[str] = None
+    ponto_referencia: Optional[str] = None
     status: bool = True
 
 
@@ -23,6 +27,10 @@ class ClienteUpdate(BaseModel):
     estado: Optional[str] = None
     email: Optional[str] = None
     whatsapp: Optional[str] = None
+    cep: Optional[str] = None
+    rua: Optional[str] = None
+    bairro: Optional[str] = None
+    ponto_referencia: Optional[str] = None
     status: Optional[bool] = None
 
 
