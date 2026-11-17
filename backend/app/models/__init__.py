@@ -5,6 +5,7 @@ from app.models.chamado import Chamado
 from app.models.material import Material, ChamadoMaterial
 from app.models.foto import ChamadoFoto
 from app.models.cliente_conta import ClienteConta
+from app.models.pluviometria import Pluviometria
 
 __all__ = [
     "Usuario",
@@ -16,4 +17,5 @@ __all__ = [
     "ChamadoMaterial",
     "ChamadoFoto",
     "ClienteConta",
+    "Pluviometria",
 ]
