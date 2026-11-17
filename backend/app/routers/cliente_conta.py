@@ -23,6 +23,7 @@ from app.schemas.cliente import ClienteOut
 from app.schemas.cliente_auth import ChamadoClienteCreate, ClienteLogin, ClienteRegistro
 from app.schemas.foto import ChamadoFotoOut
 from app.schemas.tipo import TipoOut
+from app.utils.fotos import MAX_FOTOS_POR_CHAMADO, validar_conteudo_foto
 
 router = APIRouter(prefix="/clientes/conta", tags=["Contas de clientes"])
 UPLOAD_BASE_DIR = Path("uploads")
@@ -65,6 +66,11 @@ def registrar_cliente(dados: ClienteRegistro, db: Session = Depends(get_db)):
     if db.query(Usuario).filter(Usuario.email.ilike(email)).first():
         raise HTTPException(status_code=400, detail="E-mail já cadastrado")
 
+    try:
+        senha_cripto = hash_senha(dados.senha)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc))
+
     cliente = Cliente(
         nome=dados.nome.strip(),
         cpf=cpf,
@@ -77,7 +83,7 @@ def registrar_cliente(dados: ClienteRegistro, db: Session = Depends(get_db)):
     conta = ClienteConta(
         cliente_id=cliente.id_cliente,
         email=email,
-        senha_hash=hash_senha(dados.senha),
+        senha_hash=senha_cripto,
     )
     db.add(conta)
     db.commit()
@@ -186,31 +192,62 @@ async def enviar_fotos_cliente(
     if not fotos or len(fotos) > 5:
         raise HTTPException(status_code=400, detail="Envie de 1 a 5 fotos")
 
+    # Verifica limite total de fotos no chamado (Atividade B)
+    from sqlalchemy import func
+    total_existente = (
+        db.query(func.count(ChamadoFoto.id_foto))
+        .filter(ChamadoFoto.chamado_id == id_chamado)
+        .scalar()
+        or 0
+    )
+    if total_existente + len(fotos) > MAX_FOTOS_POR_CHAMADO:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Limite de {MAX_FOTOS_POR_CHAMADO} fotos por chamado excedido.",
+        )
+
     pasta_chamado = UPLOAD_BASE_DIR / "chamados" / str(id_chamado)
     pasta_chamado.mkdir(parents=True, exist_ok=True)
-    if any(
-        Path(arquivo.filename or "foto.jpg").suffix.lower()
-        not in {".jpg", ".jpeg", ".png", ".webp"}
-        for arquivo in fotos
-    ):
-        raise HTTPException(status_code=400, detail="Formato de foto não permitido")
 
     registros = []
-    for arquivo in fotos:
-        nome_original = arquivo.filename or "foto.jpg"
-        nome_seguro = re.sub(r"[^\w.-]", "_", Path(nome_original).name, flags=re.UNICODE)
-        nome_final = f"{int(datetime.now(timezone.utc).timestamp())}_{uuid.uuid4().hex[:8]}_{nome_seguro}"
-        caminho_completo = pasta_chamado / nome_final
-        conteudo = await arquivo.read()
-        caminho_completo.write_bytes(conteudo)
-        registro = ChamadoFoto(
-            chamado_id=id_chamado,
-            caminho_foto=f"uploads/chamados/{id_chamado}/{nome_final}",
-        )
-        db.add(registro)
-        registros.append(registro)
+    arquivos_salvos = []
+    try:
+        for arquivo in fotos:
+            nome_original = arquivo.filename or "foto.jpg"
+            conteudo = await arquivo.read()
 
-    db.commit()
+            # Validação rigorosa de magic bytes / extensão / tamanho
+            ext_segura = validar_conteudo_foto(conteudo, nome_original)
+
+            nome_base = re.sub(r"[^\w.-]", "_", Path(nome_original).stem, flags=re.UNICODE)
+            timestamp = int(datetime.now(timezone.utc).timestamp())
+            uuid_sufixo = uuid.uuid4().hex[:8]
+            nome_final = f"{timestamp}_{uuid_sufixo}_{nome_base}{ext_segura}"
+
+            caminho_completo = pasta_chamado / nome_final
+            caminho_completo.write_bytes(conteudo)
+            arquivos_salvos.append(caminho_completo)
+
+            registro = ChamadoFoto(
+                chamado_id=id_chamado,
+                caminho_foto=f"uploads/chamados/{id_chamado}/{nome_final}",
+            )
+            db.add(registro)
+            registros.append(registro)
+
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        for p in arquivos_salvos:
+            if p.exists():
+                try:
+                    p.unlink()
+                except OSError:
+                    pass
+        if isinstance(exc, HTTPException):
+            raise exc
+        raise HTTPException(status_code=500, detail=f"Erro ao salvar fotos: {str(exc)}")
+
     for registro in registros:
         db.refresh(registro)
     return registros

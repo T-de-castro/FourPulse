@@ -3,7 +3,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-from app.auth.dependencies import get_usuario_atual
+from app.auth.dependencies import apenas_atendente_ou_admin, get_usuario_atual
 from app.database import get_db
 from app.models.material import ChamadoMaterial, Material
 from app.models.usuario import Usuario
@@ -16,6 +16,8 @@ router = APIRouter(prefix="/materiais", tags=["Materiais"])
 def listar_materiais(
     apenas_ativos: bool = Query(True, description="Filtrar apenas materiais com status ativo"),
     busca: Optional[str] = Query(None, description="Buscar por descrição ou unidade"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
     db: Session = Depends(get_db),
     _: Usuario = Depends(get_usuario_atual),
 ):
@@ -27,14 +29,14 @@ def listar_materiais(
         query = query.filter(
             (Material.descricao.ilike(termo)) | (Material.unidade_medida.ilike(termo))
         )
-    return query.order_by(Material.descricao.asc()).all()
+    return query.order_by(Material.descricao.asc()).offset(skip).limit(limit).all()
 
 
 @router.post("/", response_model=MaterialOut, status_code=status.HTTP_201_CREATED)
 def criar_material(
     dados: MaterialCreate,
     db: Session = Depends(get_db),
-    _: Usuario = Depends(get_usuario_atual),
+    _: Usuario = Depends(apenas_atendente_ou_admin),
 ):
     material_existente = (
         db.query(Material)
@@ -76,7 +78,7 @@ def atualizar_material(
     id_material: int,
     dados: MaterialUpdate,
     db: Session = Depends(get_db),
-    _: Usuario = Depends(get_usuario_atual),
+    _: Usuario = Depends(apenas_atendente_ou_admin),
 ):
     material = db.query(Material).filter(Material.id_material == id_material).first()
     if not material:
@@ -100,7 +102,7 @@ def atualizar_material(
 def remover_material(
     id_material: int,
     db: Session = Depends(get_db),
-    _: Usuario = Depends(get_usuario_atual),
+    _: Usuario = Depends(apenas_atendente_ou_admin),
 ):
     material = db.query(Material).filter(Material.id_material == id_material).first()
     if not material:

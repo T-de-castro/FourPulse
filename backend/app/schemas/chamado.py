@@ -4,7 +4,7 @@ from typing import List, Optional
 from pydantic import BaseModel, model_validator
 
 from app.models.chamado import CanalEntrada, StatusChamado
-from app.schemas.chamado_material import ChamadoMaterialOut
+from app.schemas.chamado_material import ChamadoMaterialCreate, ChamadoMaterialOut
 from app.schemas.cliente import ClienteOut
 from app.schemas.foto import ChamadoFotoOut
 from app.schemas.tipo import TipoOut
@@ -83,6 +83,7 @@ class ChamadoUpdate(BaseModel):
     notificar_whatsapp: Optional[bool] = None
     data_limite: Optional[datetime] = None
     data_fechamento: Optional[datetime] = None
+    versao: Optional[int] = None
 
     @model_validator(mode="before")
     @classmethod
@@ -99,6 +100,11 @@ class ChamadoUpdate(BaseModel):
         return values
 
 
+class FinalizarChamadoRequest(BaseModel):
+    materiais: List[ChamadoMaterialCreate] = []
+    justificativa: Optional[str] = None
+
+
 class ChamadoOut(ChamadoBase):
     id_chamado: int
     cliente_id: int
@@ -106,6 +112,7 @@ class ChamadoOut(ChamadoBase):
     id_cliente: int
     id_tipo: int
     status: str
+    versao: int = 1
     data_abertura: datetime
     data_fechamento: Optional[datetime] = None
     cliente: ClienteOut

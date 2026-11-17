@@ -1,6 +1,6 @@
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import apenas_admin, get_usuario_atual
@@ -14,10 +14,12 @@ router = APIRouter(prefix="/tipos", tags=["Tipos"])
 
 @router.get("/", response_model=List[TipoOut])
 def listar_tipos(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
     db: Session = Depends(get_db),
     _: Usuario = Depends(get_usuario_atual),
 ):
-    return db.query(Tipo).all()
+    return db.query(Tipo).order_by(Tipo.descricao.asc()).offset(skip).limit(limit).all()
 
 
 @router.post("/", response_model=TipoOut, status_code=status.HTTP_201_CREATED)

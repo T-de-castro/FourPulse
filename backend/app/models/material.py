@@ -36,6 +36,7 @@ class ChamadoMaterial(Base):
         nullable=False,
     )
     quantidade = Column(Numeric(10, 2), nullable=False)
+    valor_unitario = Column(Numeric(10, 2), default=0.00, nullable=False)
 
     __table_args__ = (
         UniqueConstraint("chamado_id", "material_id", name="uq_chamado_material"),

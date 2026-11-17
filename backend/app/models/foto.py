@@ -24,5 +24,4 @@ class ChamadoFoto(Base):
 
     @property
     def url_foto(self):
-        caminho = self.caminho_foto or ""
-        return f"/{caminho.lstrip('/')}"
+        return f"/chamados/{self.chamado_id}/fotos/{self.id_foto}/arquivo"

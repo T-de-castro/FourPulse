@@ -116,6 +116,7 @@ CREATE TABLE chamado_materiais (
     material_id INTEGER NOT NULL,
     quantidade NUMERIC(10,2) NOT NULL
         CHECK (quantidade > 0),
+    valor_unitario NUMERIC(10,2) NOT NULL DEFAULT 0.00,
 
     CONSTRAINT fk_chamado_material_chamado
         FOREIGN KEY (chamado_id)
