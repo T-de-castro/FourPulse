@@ -42,6 +42,7 @@ class Chamado(Base):
     data_fechamento = Column(DateTime(timezone=True), nullable=True)
     notificar_email = Column(Boolean, default=False, nullable=False)
     notificar_whatsapp = Column(Boolean, default=False, nullable=False)
+    versao = Column(Integer, default=1, nullable=False)
 
     # Chaves estrangeiras conforme banco.sql
     cliente_id = Column(Integer, ForeignKey("clientes.id_cliente"), nullable=False)

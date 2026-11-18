@@ -116,6 +116,7 @@ CREATE TABLE chamado_materiais (
     material_id INTEGER NOT NULL,
     quantidade NUMERIC(10,2) NOT NULL
         CHECK (quantidade > 0),
+    valor_unitario NUMERIC(10,2) NOT NULL DEFAULT 0.00,
 
     CONSTRAINT fk_chamado_material_chamado
         FOREIGN KEY (chamado_id)
@@ -129,3 +130,18 @@ CREATE TABLE chamado_materiais (
     CONSTRAINT uq_chamado_material
         UNIQUE (chamado_id, material_id)
 );
+
+CREATE TABLE pluviometria (
+    id_medicao INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    estacao VARCHAR(100) NOT NULL DEFAULT 'INMET - Concórdia/Oeste SC',
+    data_medicao DATE NOT NULL,
+    hora VARCHAR(5),
+    precipitacao_mm NUMERIC(6,2) NOT NULL DEFAULT 0.00,
+    temperatura_c NUMERIC(4,1),
+    umidade_pct NUMERIC(4,1),
+    nivel_alerta VARCHAR(50) NOT NULL DEFAULT 'Normal',
+    origem VARCHAR(100) NOT NULL DEFAULT 'INMET / Defesa Civil SC'
+);
+
+CREATE INDEX ix_pluviometria_data
+    ON pluviometria (data_medicao DESC);

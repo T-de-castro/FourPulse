@@ -102,10 +102,12 @@ def adapt_ticket(ticket):
     status = ticket["status"]
     if status == "Em aberto":
         status = "Chamados abertos"
+    token = st.session_state.get("access_token")
+    token_suffix = f"?token={token}" if token else ""
     photos = [
         {
             "nome": photo["caminho_foto"].rsplit("/", 1)[-1],
-            "conteudo": f"{API_BASE_URL}{photo.get('url_foto') or '/' + photo['caminho_foto'].lstrip('/')}",
+            "conteudo": f"{API_BASE_URL}{photo.get('url_foto') or '/' + photo['caminho_foto'].lstrip('/')}{token_suffix}",
         }
         for photo in ticket.get("fotos", [])
     ]
@@ -114,7 +116,7 @@ def adapt_ticket(ticket):
             "material_id": item["material_id"],
             "descricao": item["material"]["descricao"] if item.get("material") else "Material",
             "quantidade": float(item["quantidade"]),
-            "valor_unitario": float(item["material"]["valor"]) if item.get("material") else 0,
+            "valor_unitario": float(item.get("valor_unitario") or (item["material"]["valor"] if item.get("material") else 0)),
         }
         for item in ticket.get("materiais", [])
     ]
@@ -1375,6 +1377,24 @@ def render_dashboard():
                 )
                 st.metric(presentation["label"], total, label_visibility="collapsed")
                 st.caption(captions[status])
+
+    # Card de Pluviometria e Monitoramento Climático da Defesa Civil
+    try:
+        pluv_resp = api_request("GET", "/clima/pluviometria", token=st.session_state.get("access_token"))
+        if pluv_resp.ok:
+            pluv = pluv_resp.json()
+            with st.container(border=True):
+                st.markdown(f":material/cloud: **Monitoramento Pluviométrico — {pluv.get('cidade', 'Concórdia - SC')}**")
+                p_c1, p_c2, p_c3 = st.columns([1, 1, 2])
+                with p_c1:
+                    st.metric("Chuva acumulada (24h)", f"{pluv['acumulado_24h_mm']:.1f} mm")
+                with p_c2:
+                    st.metric("Acumulado 7 dias", f"{pluv['acumulado_7d_mm']:.1f} mm")
+                with p_c3:
+                    st.markdown(f"**Nível de Atenção:** :{pluv.get('cor_alerta', 'green')}[{pluv.get('nivel_alerta', 'Normal')}]")
+                    st.caption(pluv.get("mensagem_defesa_civil", ""))
+    except Exception:
+        pass
 
     st.markdown(
         '<div class="section-heading"><div><h2>Distribuição dos chamados</h2>'

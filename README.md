@@ -7,7 +7,7 @@ Sistema de atendimento e controle de chamados da Defesa Civil de Concórdia. O p
 - O Streamlit consulta e altera os registros da API; os dados exibidos vêm do PostgreSQL, sem registros fictícios ou persistência temporária no frontend.
 - A equipe entra com usuários cadastrados na tabela `usuarios`.
 - Clientes podem criar uma conta pela tela inicial. As credenciais ficam na tabela `cliente_contas`, separada dos campos de cadastro do cliente. Cada cliente consulta apenas seus chamados e pode abrir chamados com fotos.
-- As imagens ficam em `Backend/uploads/` e são servidas pela API.
+- As imagens ficam em `backend/uploads/` e são servidas pela API de forma protegida.
 - O frontend usa `http://localhost:8000` por padrão. Configure `FOURPULSE_API_URL` se a API estiver em outro endereço.
 - O backend usa `CIDADE_PADRAO` e `ESTADO_PADRAO` como localidade de cadastro para contas de cliente. O cadastro interno usa `FOURPULSE_CIDADE` para a cidade padrão.
 
@@ -22,8 +22,9 @@ Sistema de atendimento e controle de chamados da Defesa Civil de Concórdia. O p
 O banco FourPulse existente foi identificado como `PulseDesk`, na instalação PostgreSQL 17 (porta 5433). Para ele, aplique a migração aditiva no PowerShell:
 
 ```powershell
-& "C:\Program Files\PostgreSQL\17\bin\psql.exe" -h localhost -p 5433 -U SEU_USUARIO -d PulseDesk -f .\Backend\migrations\001_cliente_auth.sql
-& "C:\Program Files\PostgreSQL\17\bin\psql.exe" -h localhost -p 5433 -U SEU_USUARIO -d PulseDesk -f .\Backend\migrations\002_telefone_canal_chamado.sql
+& "C:\Program Files\PostgreSQL\17\bin\psql.exe" -h localhost -p 5433 -U SEU_USUARIO -d PulseDesk -f .\backend\migrations\001_cliente_auth.sql
+& "C:\Program Files\PostgreSQL\17\bin\psql.exe" -h localhost -p 5433 -U SEU_USUARIO -d PulseDesk -f .\backend\migrations\002_telefone_canal_chamado.sql
+& "C:\Program Files\PostgreSQL\17\bin\psql.exe" -h localhost -p 5433 -U SEU_USUARIO -d PulseDesk -f .\backend\migrations\003_valor_unitario_materiais_versao_chamado.sql
 ```
 
 O `psql` solicitará a senha do usuário do PostgreSQL. As migrações criam a tabela de credenciais de clientes, adicionam os campos que faltarem e habilitam o canal Telefone; podem ser executadas mais de uma vez. Para uma instalação diferente, ajuste executável, porta e nome do banco. Para criar um banco novo, use `Arquitetura/banco.sql` após criar o banco.
@@ -33,7 +34,7 @@ O `psql` solicitará a senha do usuário do PostgreSQL. As migrações criam a t
 Abra um PowerShell na pasta do projeto:
 
 ```powershell
-cd .\Backend
+cd .\backend
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 Copy-Item .env.example .env
@@ -41,7 +42,7 @@ Copy-Item .env.example .env
 
 Use `python` (não `py`): neste computador o launcher `py` aponta para uma instalação Python 3.14 inexistente, enquanto `python` seleciona o Python 3.13 instalado. Não é necessário ativar o ambiente virtual, evitando também bloqueios da política de execução do PowerShell.
 
-Edite `Backend/.env` e informe a conexão do banco `PulseDesk` na instalação PostgreSQL 17, incluindo o usuário e a senha usados para conectar ao banco. Codifique na URL caracteres especiais da senha (`@` vira `%40`, por exemplo). Gere uma chave JWT com `python -c "import secrets; print(secrets.token_urlsafe(32))"` e substitua o valor de exemplo:
+Edite `backend/.env` e informe a conexão do banco `PulseDesk` na instalação PostgreSQL 17, incluindo o usuário e a senha usados para conectar ao banco. Codifique na URL caracteres especiais da senha (`@` vira `%40`, por exemplo). Gere uma chave JWT com `python -c "import secrets; print(secrets.token_urlsafe(32))"` e substitua o valor de exemplo:
 
 ```dotenv
 DATABASE_URL=postgresql+psycopg2://SEU_USUARIO:SUA_SENHA@localhost:5433/PulseDesk
@@ -110,9 +111,9 @@ O painel administrativo requer um usuário ativo. A área do cliente requer cont
 
 ```text
 Arquitetura/banco.sql        Estrutura PostgreSQL
-Backend/app/                 API FastAPI, modelos, autenticação e rotas
-Backend/migrations/          Ajustes para bancos existentes
-Backend/uploads/             Fotos dos chamados
+backend/app/                 API FastAPI, modelos, autenticação e rotas
+backend/migrations/          Ajustes para bancos existentes
+backend/uploads/             Fotos dos chamados
 Frontend/app.py              Interface Streamlit
 Frontend/api.py              Cliente HTTP da API
 Frontend/assets/             Estilos, interações e imagem da Defesa Civil
